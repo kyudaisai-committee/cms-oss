@@ -11,6 +11,7 @@
 	},
 	"exports": {
 		"./dto": "./src/dto.ts",
+		"./errors": "./src/errors.ts",
 		"./input": "./src/input.ts",
 		"./import-plan": "./src/import-plan.ts",
 		"./repository.server": "./src/repository.server.ts",

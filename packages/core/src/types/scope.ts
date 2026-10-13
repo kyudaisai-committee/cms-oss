@@ -1,4 +1,4 @@
-import { z } from "@hono/zod-openapi";
+import { z } from "zod";
 
 export const siteSchema = z.string().trim().min(1);
 export type Site = z.infer<typeof siteSchema>;

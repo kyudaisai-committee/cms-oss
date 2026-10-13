@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { describe, expect, it } from "vitest";
 
-import type { AccessJwtVerifier } from "#web/api/access.server";
+import type { AccessJwtVerifier } from "#api/access.server";
 
 import { createAccessJwtMiddleware } from "./middleware";
 import type { ApiEnv } from "./utils";

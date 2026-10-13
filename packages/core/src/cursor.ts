@@ -1,5 +1,6 @@
-import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+
+import { CmsError } from "#core/errors";
 
 export const timeCursorSchema = z.object({
 	timestamp: z.iso.datetime(),
@@ -9,7 +10,7 @@ export type TimeCursor = z.infer<typeof timeCursorSchema>;
 
 export function encodeCursor(cursor: TimeCursor) {
 	const validated = timeCursorSchema.safeParse(cursor);
-	if (!validated.success) throw new HTTPException(400, { message: "Cursor has an invalid shape." });
+	if (!validated.success) throw new CmsError("validation", "Cursor has an invalid shape.");
 	const encoded = new TextEncoder().encode(JSON.stringify(validated.data));
 	let binary = "";
 	for (const byte of encoded) binary += String.fromCharCode(byte);
@@ -25,6 +26,6 @@ export function decodeCursor(value: string | undefined): TimeCursor | null {
 		const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
 		return timeCursorSchema.parse(JSON.parse(new TextDecoder().decode(bytes)));
 	} catch {
-		throw new HTTPException(400, { message: "Cursor is invalid." });
+		throw new CmsError("validation", "Cursor is invalid.");
 	}
 }

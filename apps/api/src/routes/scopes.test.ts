@@ -1,11 +1,11 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
-import type { AnyD1Database } from "drizzle-orm/d1";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const cachePurge = vi.hoisted(() => vi.fn(async () => ({ success: true })));
 vi.mock("cloudflare:workers", () => ({ cache: { purge: cachePurge } }));
 
-import { localActor } from "#web/api/access.server";
+import { localActor } from "#api/access.server";
+import type { ApiBindings } from "#api/context";
 import { CmsService } from "@repo/core/service.server";
 import type { ScopeDto } from "@repo/core/types";
 
@@ -13,7 +13,7 @@ import { internalErrorResponse } from "../errors";
 import type { ApiEnv } from "../utils";
 import { adminScopeRoutes } from "./scopes";
 
-const environment = { DB: {} as unknown as AnyD1Database };
+const environment = { DB: {} as unknown as ApiBindings["DB"] };
 
 const scope: ScopeDto = {
 	year: 2026,

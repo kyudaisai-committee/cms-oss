@@ -1,14 +1,14 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
-import type { AnyD1Database } from "drizzle-orm/d1";
 import { HTTPException } from "hono/http-exception";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const cachePurge = vi.hoisted(() => vi.fn(async () => ({ success: true })));
 vi.mock("cloudflare:workers", () => ({ cache: { purge: cachePurge } }));
 
-import { localActor } from "#web/api/access.server";
-import type { ApiBindings } from "#web/api/context";
-import { getDb } from "#web/lib/db.server";
+import { localActor } from "#api/access.server";
+import type { ApiBindings } from "#api/context";
+import { getDb } from "#api/db.server";
+import { CmsError } from "@repo/core/errors";
 import { CmsService } from "@repo/core/service.server";
 import {
 	dataExportSchema,
@@ -16,11 +16,11 @@ import {
 	dataImportResultSchema,
 } from "@repo/core/types";
 
-import { internalErrorResponse, httpExceptionResponse } from "../errors";
+import { cmsErrorResponse, internalErrorResponse, httpExceptionResponse } from "../errors";
 import type { ApiEnv } from "../utils";
 import { adminImportRoutes } from "./import";
 
-const environment = { DB: {} as unknown as AnyD1Database } satisfies Pick<ApiBindings, "DB">;
+const environment = { DB: {} as unknown as ApiBindings["DB"] } satisfies Pick<ApiBindings, "DB">;
 
 const scope = {
 	id: "scope-1",
@@ -106,9 +106,11 @@ function createApp() {
 		c.set("service", service);
 		await next();
 	});
-	app.onError((error, c) =>
-		error instanceof HTTPException ? httpExceptionResponse(c, error) : internalErrorResponse(c),
-	);
+	app.onError((error, c) => {
+		if (error instanceof CmsError) return cmsErrorResponse(c, error);
+		if (error instanceof HTTPException) return httpExceptionResponse(c, error);
+		return internalErrorResponse(c);
+	});
 	app.route("/", adminImportRoutes);
 	return app;
 }
@@ -165,7 +167,7 @@ describe("admin data import routes", () => {
 
 	it("does not purge cache when fresh-state validation rejects a stale commit", async () => {
 		vi.spyOn(CmsService.prototype, "importData").mockRejectedValue(
-			new HTTPException(409, { message: "Review the current data and preview again." }),
+			new CmsError("conflict", "Review the current data and preview again."),
 		);
 		const response = await createApp().request(
 			"/2026/festival/import",

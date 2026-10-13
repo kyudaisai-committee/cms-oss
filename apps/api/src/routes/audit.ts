@@ -1,6 +1,7 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 
-import { apiEnvelopeSchema, auditDtoSchema, scopeRefSchema } from "@repo/core/types";
+import { apiEnvelopeSchema } from "#api/contracts";
+import { auditDtoSchema, scopeRefSchema } from "@repo/core/types";
 
 import { apiErrorResponses, methodNotAllowed, noStoreHeaders } from "../errors";
 import type { ApiEnv } from "../utils";

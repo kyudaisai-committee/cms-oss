@@ -1,14 +1,17 @@
-import { z } from "@hono/zod-openapi";
 import type { ClientResponse } from "hono/client";
+import { z } from "zod";
 
-import { apiBasePath, createApiClient } from "#web/api/client";
+import { apiBasePath, createApiClient } from "@repo/api/client";
+import {
+	apiEnvelopeSchema,
+	apiErrorEnvelopeSchema,
+	assetUploadInputSchema,
+} from "@repo/api/contracts";
+import type { AdminNewsQuery } from "@repo/api/contracts";
 import {
 	adminNewsDtoSchema,
 	adminNewsPageSchema,
-	apiEnvelopeSchema,
-	apiErrorEnvelopeSchema,
 	assetDtoSchema,
-	assetUploadInputSchema,
 	createNewsInputSchema,
 	createNewsTranslationInputSchema,
 	createTagInputSchema,
@@ -24,7 +27,6 @@ import {
 	updateTagInputSchema,
 } from "@repo/core/types";
 import type {
-	AdminNewsQuery,
 	AdminNewsDto,
 	AdminNewsPage,
 	AssetDto,

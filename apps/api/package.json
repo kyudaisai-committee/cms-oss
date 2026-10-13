@@ -13,6 +13,7 @@
 		"./access.server": "./src/access.server.ts",
 		"./client": "./src/client.ts",
 		"./contracts": "./src/contracts.ts",
+		"./db.server": "./src/db.server.ts",
 		"./server": "./src/server.ts"
 	},
 	"scripts": {

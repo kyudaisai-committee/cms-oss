@@ -2,7 +2,7 @@ import { vi, describe, expect, it } from "vitest";
 
 const { patch, post } = vi.hoisted(() => ({ patch: vi.fn(), post: vi.fn() }));
 
-vi.mock("#web/api/client", () => ({
+vi.mock("@repo/api/client", () => ({
 	createApiClient: () => ({
 		admin: {
 			scopes: {

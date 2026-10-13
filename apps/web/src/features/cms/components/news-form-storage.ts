@@ -1,4 +1,4 @@
-import { z } from "@hono/zod-openapi";
+import { z } from "zod";
 
 import { cmsSettings } from "#web/cms-settings";
 import { newsContentTypeSchema } from "@repo/core/types";

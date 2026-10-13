@@ -1,5 +1,5 @@
-import { z } from "@hono/zod-openapi";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 import { dataExportSchema } from "./export";
 

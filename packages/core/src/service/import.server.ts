@@ -1,9 +1,9 @@
 import "server-only";
 
 import type { InferSelectModel } from "drizzle-orm";
-import { HTTPException } from "hono/http-exception";
 
 import { scopes } from "#core/db/schema";
+import { CmsError } from "#core/errors";
 import { CmsRepository, isUniqueConstraintError } from "#core/repository.server";
 import type { DataImportTargetState } from "#core/repository/import.server";
 import { dataImportCommitRequestSchema, dataImportRequestSchema } from "#core/types";
@@ -34,7 +34,7 @@ export class DataImportService {
 
 	private async readTarget() {
 		const target = await this.repository.readImportTarget(this.scope.id);
-		if (!target) throw new HTTPException(404, { message: "Scope was not found." });
+		if (!target) throw new CmsError("not_found", "Scope was not found.");
 		return target;
 	}
 
@@ -56,33 +56,37 @@ export class DataImportService {
 		const planned = planDataImport(request, targetForPlan(state));
 		const currentToken = await createImportPreviewToken(state, request, planned.plan);
 		if (currentToken !== expectedPreviewToken) {
-			throw new HTTPException(409, {
-				message: "Import data changed after preview. Review the current data and preview again.",
-			});
+			throw new CmsError(
+				"conflict",
+				"Import data changed after preview. Review the current data and preview again.",
+			);
 		}
 		if (!planned.plan.ready) {
-			throw new HTTPException(400, {
-				message: planned.plan.errors[0] ?? "Import choices are incomplete. Review the preview.",
-			});
+			throw new CmsError(
+				"validation",
+				planned.plan.errors[0] ?? "Import choices are incomplete. Review the preview.",
+			);
 		}
 
 		const writeSet = makeDataImportWriteSet(state, planned, this.actor);
 		try {
 			const written = await this.repository.writeImport(writeSet);
 			if (!written) {
-				throw new HTTPException(409, {
-					message: "Target scope changed during import. Review the current data and preview again.",
-				});
+				throw new CmsError(
+					"conflict",
+					"Target scope changed during import. Review the current data and preview again.",
+				);
 			}
 		} catch (error) {
-			if (error instanceof HTTPException) throw error;
+			if (error instanceof CmsError) throw error;
 			if (
 				isUniqueConstraintError(error) ||
 				(error instanceof Error && /NOT NULL constraint failed: scopes\.id/i.test(error.message))
 			) {
-				throw new HTTPException(409, {
-					message: "Target data changed during import. Review the current data and preview again.",
-				});
+				throw new CmsError(
+					"conflict",
+					"Target data changed during import. Review the current data and preview again.",
+				);
 			}
 			throw error;
 		}

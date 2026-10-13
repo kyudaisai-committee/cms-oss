@@ -1,10 +1,10 @@
 import "server-only";
 
 import type { InferSelectModel } from "drizzle-orm";
-import { HTTPException } from "hono/http-exception";
 
 import { tags } from "#core/db/schema";
 import { toTagDto } from "#core/dto";
+import { CmsError } from "#core/errors";
 import { normalizeCreateTagInput, normalizeUpdateTagInput } from "#core/input";
 import { CmsRepository, isUniqueConstraintError } from "#core/repository.server";
 import type { CmsActor, CreateTagInput, TagDto, UpdateTagInput } from "#core/types";
@@ -50,9 +50,7 @@ export class TagService {
 			});
 		} catch (error) {
 			if (isUniqueConstraintError(error))
-				throw new HTTPException(409, {
-					message: "Tag name or slug is already in use in this scope.",
-				});
+				throw new CmsError("conflict", "Tag name or slug is already in use in this scope.");
 			throw error;
 		}
 		return toTagDto(tag);
@@ -60,7 +58,7 @@ export class TagService {
 
 	async updateTag(id: string, input: UpdateTagInput): Promise<TagDto> {
 		const existing = await this.repository.findTagById(this.scope.id, id);
-		if (!existing) throw new HTTPException(404, { message: "Tag was not found." });
+		if (!existing) throw new CmsError("not_found", "Tag was not found.");
 		const normalized = normalizeUpdateTagInput(input);
 		const values: Partial<TagRecord> = normalized;
 		try {
@@ -78,9 +76,7 @@ export class TagService {
 			});
 		} catch (error) {
 			if (isUniqueConstraintError(error))
-				throw new HTTPException(409, {
-					message: "Tag name or slug is already in use in this scope.",
-				});
+				throw new CmsError("conflict", "Tag name or slug is already in use in this scope.");
 			throw error;
 		}
 		return toTagDto({ ...existing, ...values });
@@ -88,7 +84,7 @@ export class TagService {
 
 	async deleteTag(id: string) {
 		const existing = await this.repository.findTagById(this.scope.id, id);
-		if (!existing) throw new HTTPException(404, { message: "Tag was not found." });
+		if (!existing) throw new CmsError("not_found", "Tag was not found.");
 		await this.repository.deleteTag(id, {
 			actor: this.actor,
 			action: "tag.delete",

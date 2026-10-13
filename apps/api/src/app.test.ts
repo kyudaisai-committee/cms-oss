@@ -1,11 +1,11 @@
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
 import { beforeAll, describe, expect, expectTypeOf, it, vi } from "vitest";
 
-import { cmsSettings } from "#web/cms-settings";
-
-import { adminApiApp, apiApp } from "./app";
+import { createApiApp } from "./app";
 import { createApiClient } from "./client";
 
+const apiName = "API test";
+const apiApp = createApiApp({ apiName });
 const teamDomain = "api-tests.cloudflareaccess.example";
 const audience = "api-test-audience";
 let privateKey: Awaited<ReturnType<typeof generateKeyPair>>["privateKey"];
@@ -105,7 +105,7 @@ describe("CMS API boundaries", () => {
 		const document = (await response.json()) as OpenApiDocument;
 		expect(document).toMatchObject({
 			openapi: "3.2.0",
-			info: { title: `${cmsSettings.name} Public API` },
+			info: { title: `${apiName} Public API` },
 		});
 		const publicNewsPath = document.paths["/{year}/{site}/news"];
 		expect(publicNewsPath).toEqual(
@@ -145,7 +145,7 @@ describe("CMS API boundaries", () => {
 		const document = (await response.json()) as OpenApiDocument;
 		expect(document).toMatchObject({
 			openapi: "3.2.0",
-			info: { title: `${cmsSettings.name} Admin API` },
+			info: { title: `${apiName} Admin API` },
 			security: [
 				{ cloudflareAccessCookie: [] },
 				{ cloudflareAccessClientId: [], cloudflareAccessClientSecret: [] },
@@ -171,7 +171,7 @@ describe("CMS API boundaries", () => {
 	});
 
 	it("rejects identity headers without a verified JWT", async () => {
-		const response = await adminApiApp.request("https://cms.example/scopes", {
+		const response = await apiApp.request("https://cms.example/admin/scopes", {
 			headers: {
 				"CF-Access-Authenticated-User-Email": "spoofed@example.com",
 				"CF-Access-User-Id": "spoofed-user",

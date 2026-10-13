@@ -1,9 +1,9 @@
 import "server-only";
 
 import type { InferSelectModel } from "drizzle-orm";
-import { HTTPException } from "hono/http-exception";
 
 import { news, newsTranslations, scopes, tags } from "#core/db/schema";
+import { CmsError } from "#core/errors";
 import { canonicalizeStoredLanguage, normalizeLang } from "#core/input";
 import { CmsRepository } from "#core/repository.server";
 import type { CmsActor } from "#core/types";
@@ -28,7 +28,7 @@ export function scopeLanguage(scope: ScopeRecord, requested?: string) {
 		.map(canonicalizeStoredLanguage)
 		.filter((value): value is string => value !== null);
 	if (!available.includes(lang)) {
-		throw new HTTPException(400, { message: "lang is not available in this scope." });
+		throw new CmsError("validation", "lang is not available in this scope.");
 	}
 	return lang;
 }
@@ -70,12 +70,12 @@ export async function requireNews(
 	lang?: string,
 ) {
 	const result = await repository.findNewsById(scopeId, id, lang);
-	if (!result) throw new HTTPException(404, { message: "News was not found." });
+	if (!result) throw new CmsError("not_found", "News was not found.");
 	return result;
 }
 
 export function tagIdsFromRows(rows: TagRecord[], requestedIds: string[]) {
 	const found = new Set(rows.map((row) => row.id));
 	const missing = requestedIds.find((id) => !found.has(id));
-	if (missing) throw new HTTPException(404, { message: "Tag was not found in this scope." });
+	if (missing) throw new CmsError("not_found", "Tag was not found in this scope.");
 }

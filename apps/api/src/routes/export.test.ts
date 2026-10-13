@@ -1,10 +1,9 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
-import type { AnyD1Database } from "drizzle-orm/d1";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { localActor } from "#web/api/access.server";
-import type { ApiBindings } from "#web/api/context";
-import { getDb } from "#web/lib/db.server";
+import { localActor } from "#api/access.server";
+import type { ApiBindings } from "#api/context";
+import { getDb } from "#api/db.server";
 import { CmsService } from "@repo/core/service.server";
 import { dataExportSchema } from "@repo/core/types";
 
@@ -12,7 +11,7 @@ import { internalErrorResponse } from "../errors";
 import type { ApiEnv } from "../utils";
 import { adminExportRoutes } from "./export";
 
-const environment = { DB: {} as unknown as AnyD1Database } satisfies Pick<ApiBindings, "DB">;
+const environment = { DB: {} as unknown as ApiBindings["DB"] } satisfies Pick<ApiBindings, "DB">;
 
 const exportedData = dataExportSchema.parse([
 	{

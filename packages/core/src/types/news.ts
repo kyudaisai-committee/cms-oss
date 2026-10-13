@@ -1,4 +1,4 @@
-import { z } from "@hono/zod-openapi";
+import { z } from "zod";
 
 import { newsLinkContentSchema, newsMarkdownContentSchema, newsStatusSchema } from "./common";
 import { scopeRefSchema } from "./scope";
@@ -151,16 +151,6 @@ export const updateNewsTranslationInputSchema = z.union([
 export type CreateNewsTranslationInput = z.infer<typeof createNewsTranslationInputSchema>;
 export type UpdateNewsTranslationInput = z.infer<typeof updateNewsTranslationInputSchema>;
 
-export const newsQuerySchema = z.object({
-	tag: z.string().optional(),
-	cursor: z.string().optional(),
-	limit: z.coerce.number().int().min(1).max(100).optional(),
-	lang: z.string().trim().min(1).max(35).optional(),
-});
-export const adminNewsQuerySchema = newsQuerySchema.extend({
-	search: z.string().trim().max(200).optional(),
-	page: z.coerce.number().int().min(1).optional(),
-});
 export type NewsListOptions = {
 	limit?: number | undefined;
 	cursor?: string | undefined;
@@ -171,9 +161,6 @@ export type NewsListOptions = {
 export type AdminNewsListOptions = NewsListOptions & {
 	page?: number | undefined;
 };
-export type NewsQuery = z.infer<typeof newsQuerySchema>;
-export type AdminNewsQuery = z.infer<typeof adminNewsQuerySchema>;
-
 export const publishedNewsPageSchema = z.object({
 	items: z.array(newsSummaryDtoSchema),
 	nextCursor: z.string().nullable(),

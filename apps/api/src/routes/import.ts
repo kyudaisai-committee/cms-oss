@@ -1,6 +1,6 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 
-import { withPublicNewsCacheInvalidation } from "#web/api/cache.server";
+import { withPublicNewsCacheInvalidation } from "#api/cache.server";
 import {
 	dataImportCommitRequestSchema,
 	dataImportPreviewResponseSchema,

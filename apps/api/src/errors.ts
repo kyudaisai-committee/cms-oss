@@ -2,8 +2,9 @@ import { z } from "@hono/zod-openapi";
 import type { Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 
-import { apiErrorEnvelopeSchema } from "@repo/core/types";
+import { CmsError } from "@repo/core/errors";
 
+import { apiErrorEnvelopeSchema } from "./contracts";
 import type { ApiEnv } from "./utils";
 
 function errorEnvelope(value: unknown) {
@@ -34,6 +35,11 @@ export function httpExceptionResponse(c: Context<ApiEnv>, error: HTTPException) 
 		}),
 		error.status,
 	);
+}
+
+export function cmsErrorResponse(c: Context<ApiEnv>, error: CmsError) {
+	const status = error.code === "validation" ? 400 : error.code === "not_found" ? 404 : 409;
+	return c.json(errorEnvelope({ error: { message: error.message } }), status);
 }
 
 export function internalErrorResponse(c: Context<ApiEnv>) {

@@ -1,4 +1,3 @@
-import { HTTPException } from "hono/http-exception";
 import { Suspense } from "react";
 import type { PageProps } from "waku/router";
 
@@ -8,6 +7,7 @@ import { DocumentTitle } from "#web/components/document-title";
 import { StatusMessage } from "#web/components/status-message";
 import { NewsForm } from "#web/features/cms/components/news-form";
 import { getAdminNews, getScope, listTags } from "#web/lib/cms/read.server";
+import { CmsError } from "@repo/core/errors";
 import { canonicalizeStoredLanguage } from "@repo/core/input";
 import { scopeRefSchema, type ScopeRef } from "@repo/core/types";
 
@@ -48,7 +48,7 @@ async function getAdminNewsForEdit(scope: ScopeRef, id: string, requestedLang?: 
 	try {
 		return await getAdminNews(scope, id, requestedLang);
 	} catch (error) {
-		if (!(error instanceof HTTPException) || error.status !== 404) throw error;
+		if (!(error instanceof CmsError) || error.code !== "not_found") throw error;
 		return getAdminNews(scope, id);
 	}
 }

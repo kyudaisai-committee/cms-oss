@@ -1,13 +1,11 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 
-import { withPublicNewsCacheInvalidation } from "#web/api/cache.server";
+import { withPublicNewsCacheInvalidation } from "#api/cache.server";
+import { adminNewsQuerySchema, apiEnvelopeSchema, apiErrorEnvelopeSchema } from "#api/contracts";
 import {
 	adminNewsDtoSchema,
 	adminNewsPageSchema,
-	adminNewsQuerySchema,
 	newsIdSchema,
-	apiEnvelopeSchema,
-	apiErrorEnvelopeSchema,
 	createNewsInputSchema,
 	createNewsTranslationInputSchema,
 	publishNewsInputSchema,

@@ -4,11 +4,10 @@ import { bodyLimit } from "hono/body-limit";
 import {
 	apiEnvelopeSchema,
 	apiErrorEnvelopeSchema,
-	assetDtoSchema,
 	assetUploadInputSchema,
 	assetUploadMaxBytes,
-	scopeRefSchema,
-} from "@repo/core/types";
+} from "#api/contracts";
+import { assetDtoSchema, scopeRefSchema } from "@repo/core/types";
 
 import { apiErrorResponses, methodNotAllowed, noStoreHeaders } from "../errors";
 import type { ApiEnv } from "../utils";

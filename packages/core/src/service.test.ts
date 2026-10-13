@@ -133,7 +133,7 @@ describe("CmsService news translations", () => {
 		const japanese = await service.createNews(newsInput("ja", "日本語のお知らせ"));
 
 		await expect(service.createNews(newsInput("en", "English notice"))).rejects.toMatchObject({
-			status: 409,
+			code: "conflict",
 		});
 		expect(japanese.lang).toBe("ja");
 	});
@@ -178,7 +178,9 @@ describe("CmsService news translations", () => {
 		const service = await createTestService();
 		const japanese = await service.createNews(newsInput("ja", "日本語のお知らせ"));
 
-		await expect(service.getAdminNews(japanese.id, "en")).rejects.toMatchObject({ status: 404 });
+		await expect(service.getAdminNews(japanese.id, "en")).rejects.toMatchObject({
+			code: "not_found",
+		});
 		const fallback = await service.getAdminNews(japanese.id);
 
 		expect(fallback.id).toBe(japanese.id);
