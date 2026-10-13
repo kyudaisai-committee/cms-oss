@@ -1,8 +1,13 @@
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
-import { beforeAll, describe, expect, expectTypeOf, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, expectTypeOf, it, vi } from "vitest";
+
+import { CmsError, type CmsErrorCode } from "@repo/core/errors";
+import { CmsRepository } from "@repo/core/repository.server";
+import { CmsService } from "@repo/core/service.server";
 
 import { createApiApp } from "./app";
 import { createApiClient } from "./client";
+import type { ApiBindings } from "./context";
 
 const apiName = "API test";
 const apiApp = createApiApp({ apiName });
@@ -40,6 +45,21 @@ const accessEnvironment = {
 	ACCESS_TEAM_DOMAIN: teamDomain,
 	ACCESS_AUDIENCE: audience,
 };
+const environment = {
+	DB: {} as unknown as ApiBindings["DB"],
+	ASSETS: {} as unknown as ApiBindings["ASSETS"],
+	...accessEnvironment,
+} satisfies ApiBindings;
+const scope = {
+	id: "scope-1",
+	year: 2026,
+	site: "festival",
+	name: "Festival",
+	availableLanguages: ["ja"],
+	defaultLanguage: "ja",
+	createdAt: new Date("2026-01-01T00:00:00.000Z"),
+	updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+};
 
 type OpenApiDocument = {
 	openapi: string;
@@ -58,6 +78,10 @@ type OpenApiOperation = {
 		content?: Record<string, unknown>;
 	};
 };
+
+afterEach(() => {
+	vi.restoreAllMocks();
+});
 
 describe("CMS API boundaries", () => {
 	it("exposes the public QUERY operation through the typed client", () => {
@@ -133,6 +157,51 @@ describe("CMS API boundaries", () => {
 			expect(await response.json()).toEqual({ error: { message: "Forbidden." } });
 		}
 	});
+
+	it("enables local Access fallback only when the factory option is explicitly enabled", async () => {
+		const path = "/admin/openapi.json";
+		const disabled = await apiApp.request(`http://127.0.0.1${path}`);
+		const enabledApp = createApiApp({ apiName, allowLocalFallback: true });
+		const enabled = await enabledApp.request(`http://127.0.0.1${path}`);
+		const external = await enabledApp.request(`https://cms.example${path}`);
+
+		expect(disabled.status).toBe(403);
+		expect(enabled.status).toBe(200);
+		expect(external.status).toBe(403);
+		expect(await enabled.json()).toMatchObject({
+			info: { title: `${apiName} Admin API` },
+		});
+	});
+
+	it.each([
+		{ code: "validation", status: 400, message: "The news input is invalid." },
+		{ code: "not_found", status: 404, message: "The news item was not found." },
+		{ code: "conflict", status: 409, message: "The news slug is already in use." },
+	] satisfies Array<{ code: CmsErrorCode; status: number; message: string }>)(
+		"maps CmsService $code errors to HTTP $status with the API error envelope",
+		async ({ code, status, message }) => {
+			vi.spyOn(CmsRepository.prototype, "findScope").mockResolvedValue(scope);
+			vi.spyOn(CmsService.prototype, "createNews").mockRejectedValue(new CmsError(code, message));
+			const localApi = createApiApp({ apiName, allowLocalFallback: true });
+			const response = await localApi.request(
+				"http://127.0.0.1/admin/2026/festival/news",
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({
+						slug: "fresh-news",
+						title: "Fresh news",
+						contentType: "markdown",
+						content: "# Fresh news",
+					}),
+				},
+				environment,
+			);
+
+			expect(response.status).toBe(status);
+			expect(await response.json()).toEqual({ error: { message } });
+		},
+	);
 
 	it("publishes an admin-only OpenAPI document with required Access security", async () => {
 		const token = await accessToken({ sub: "editor-123", email: "editor@example.com" });
