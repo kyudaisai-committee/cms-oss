@@ -80,8 +80,8 @@ async function installBuiltProduct() {
 }
 
 function haveSameEntries(left, right) {
-	const leftKeys = Object.keys(left).sort();
-	const rightKeys = Object.keys(right).sort();
+	const leftKeys = Object.keys(left).sort((leftKey, rightKey) => leftKey.localeCompare(rightKey));
+	const rightKeys = Object.keys(right).sort((leftKey, rightKey) => leftKey.localeCompare(rightKey));
 	return (
 		leftKeys.length === rightKeys.length &&
 		leftKeys.every((key, index) => key === rightKeys[index] && left[key] === right[key])
@@ -89,8 +89,10 @@ function haveSameEntries(left, right) {
 }
 
 function haveSameValues(left, right) {
-	const leftValues = [...left].sort();
-	const rightValues = [...right].sort();
+	const leftValues = [...left].sort((leftValue, rightValue) => leftValue.localeCompare(rightValue));
+	const rightValues = [...right].sort((leftValue, rightValue) =>
+		leftValue.localeCompare(rightValue),
+	);
 	return (
 		leftValues.length === rightValues.length &&
 		leftValues.every((value, index) => value === rightValues[index])
