@@ -1,41 +1,9 @@
-import { spawnSync } from "node:child_process";
 import { cp, mkdir, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 
 const testDirectoryNames = new Set(["test", "tests"]);
 
-export async function compilePackageSource(
-	packageName,
-	repositoryRoot,
-	sourceDirectory,
-	outputDirectory,
-) {
-	const compile = spawnSync(
-		"pnpm",
-		[
-			"--filter",
-			packageName,
-			"exec",
-			"tsc",
-			"-p",
-			"tsconfig.json",
-			"--noEmit",
-			"false",
-			"--declaration",
-			"false",
-			"--rootDir",
-			"src",
-			"--outDir",
-			outputDirectory,
-		],
-		{ cwd: repositoryRoot, stdio: "inherit", shell: false },
-	);
-	if (compile.error) throw compile.error;
-	if (compile.status !== 0) {
-		throw new Error(
-			`Could not compile ${packageName} for the product artifact: ${compile.status ?? "unknown status"}.`,
-		);
-	}
+export async function copyPackageAssets(sourceDirectory, outputDirectory) {
 	await removeTestArtifacts(sourceDirectory, outputDirectory);
 	await copyRuntimeAssets(sourceDirectory, outputDirectory);
 }
