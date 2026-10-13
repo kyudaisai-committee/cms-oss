@@ -18,7 +18,6 @@ export function resolveProjectPaths(cwd: string, configArgument?: string): Proje
 	const projectRoot = dirname(configPath);
 	const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 	const packagedWebSource = join(packageRoot, "dist/web/src");
-	const developmentWebSource = resolve(packageRoot, "../web/src");
 
 	return {
 		projectRoot,
