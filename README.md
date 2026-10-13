@@ -5,15 +5,15 @@ Waku 1.0.0-rc.3 と Cloudflare Workers を使った、年度 (`year`) × サイ�
 ## Workspace
 
 - `apps/web` は Waku の管理画面、CMS preview、Cloudflare Worker の入口と表示設定を持ちます。
-- `apps/api` は Hono API、HTTP 契約、OpenAPI、Cloudflare Access JWT 検証、D1/R2 接続、API cache を持ちます。独自 Worker は作らず、`apps/web` の Worker から同じ `/api/v1` URL で呼び出します。
+- `packages/api` は Hono API、HTTP 契約、OpenAPI、Cloudflare Access JWT 検証、D1/R2 接続、API cache を持ちます。単独の Worker は持たず、`apps/web` の Worker から同じ `/api/v1` URL で呼び出します。
 - `packages/core` は CMS の型・業務スキーマ・入力検証・業務処理・D1 schema (`packages/core/src/db/schema.ts`)・repository を持ちます。migration SQL と適用履歴は利用者が管理します。
 - `packages/editor` は CMS に依存しない Markdown エディター部品を持ちます。
 
-依存方向は `web -> api -> core` と `web -> core` / `web -> editor` です。`core` と `editor` は互いに依存せず、各 workspace は公開 package export を通じて参照します。HTTP と UI の責務を `core` に持ち込みません。
+依存方向は `apps/web` から `packages/api`、`packages/core`、`packages/editor` に向かい、`packages/api` は `packages/core` を使います。`packages/*` は `apps/*` に依存しません。`core` と `editor` は互いに依存せず、各 workspace は公開 package export を通じて参照します。HTTP と UI の責務を `core` に持ち込みません。
 
 `@repo/api/server` の `createApiApp` は `apps/web` の Waku や表示設定に依存せず Hono app を生成します。D1/R2 と Access 設定はリクエスト時の Worker bindings から受け取ります。`packages/core` の service は D1 接続を受け取って業務処理を行い、`packages/editor` は CMS の型や設定なしで Markdown 編集に使えます。各 workspace は個別に型検査とテストを実行でき、Worker と URL を組み立てて deploy する実行単位は `apps/web` です。
 
-Waku と Wrangler のアプリ固有コマンドは `apps/web` に置きます。`apps/api` は同じ Worker に組み込む workspace で、独自の Worker entry、Wrangler 設定、deploy command は持ちません。ルートでは workspace 全体の検査を実行し、`pnpm verify` は全 package の型検査・テスト・build を対象にします。
+Waku と Wrangler のアプリ固有コマンドは `apps/web` に置きます。`packages/api` は同じ Worker に組み込む workspace で、独自の Worker entry、Wrangler 設定、deploy command は持ちません。ルートでは workspace 全体の検査を実行し、`pnpm verify` は全 package の型検査・テスト・build を対象にします。
 
 ## 開発
 
