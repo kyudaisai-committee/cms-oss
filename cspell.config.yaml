@@ -1,0 +1,21 @@
+$schema: https://raw.githubusercontent.com/streetsidesoftware/cspell/main/packages/cspell-types/cspell.schema.json
+
+language: en,ja
+ignorePaths:
+  - node_modules
+  - dist
+  - pnpm-lock.yaml
+  - src/generated
+  - vscode-extension
+  - .git/{info,lfs,logs,refs,objects}/**
+  - .git/{index,*refs,*HEAD}
+  - .vscode
+  - .vscode-insiders
+  - worker-configuration.d.ts
+dictionaries:
+  - project-terms
+
+dictionaryDefinitions:
+  - name: project-terms
+    path: ./cspell.txt
+    addWords: true

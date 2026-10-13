@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/evilmartians/lefthook/master/schema.json
+
+pre-commit:
+  parallel: true
+  commands:
+    oxc:
+      run: |
+        pnpm exec oxlint --fix --no-error-on-unmatched-pattern {staged_files} &&
+        pnpm exec oxfmt --no-error-on-unmatched-pattern {staged_files}
+      stage_fixed: true
+    sort-txt:
+      glob: "cspell.txt"
+      run: pnpm exec node scripts/sort-txt.ts {staged_files}
+      stage_fixed: true
+    check-branch:
+      run: pnpm exec node scripts/check-branch.ts
+
+pre-push:
+  parallel: true
+  commands:
+    oxlint:
+      run: pnpm exec oxlint --no-error-on-unmatched-pattern --deny-warnings {push_files}
+    oxfmt:
+      run: pnpm exec oxfmt --check --no-error-on-unmatched-pattern {push_files}
+    cspell:
+      run: pnpm exec cspell .
+      fail_text: |
+        `pnpm check` を実行して、内容を確認してください。
+    check-branch:
+      run: pnpm exec node scripts/check-branch.ts

@@ -1,0 +1,35 @@
+{
+	"name": "@repo/root",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"typecheck": "pnpm -r typecheck",
+		"verify": "pnpm run check && pnpm -r typecheck && pnpm -r test && pnpm -r build",
+		"check": "oxlint --deny-warnings && oxfmt --check && cspell .",
+		"fix": "oxlint --fix && pnpm format",
+		"format": "oxfmt && node scripts/sort-txt.ts cspell.txt",
+		"fmt": "pnpm format",
+		"prepare": "lefthook install && pnpm -r typegen"
+	},
+	"devDependencies": {
+		"cspell": "^10.3.6",
+		"lefthook": "^2.2.1",
+		"oxfmt": "^0.72.0",
+		"oxlint": "^1.87.0",
+		"oxlint-tsgolint": "^7.0.2004"
+	},
+	"devEngines": {
+		"packageManager": {
+			"name": "pnpm",
+			"version": "12.11.2",
+			"onFail": "download"
+		},
+		"runtime": {
+			"name": "node",
+			"version": "26.11.1",
+			"onFail": "download"
+		}
+	},
+	"packageManager": "pnpm@12.11.2"
+}
