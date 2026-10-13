@@ -1,0 +1,42 @@
+{
+	"name": "@repo/cli",
+	"version": "0.1.0",
+	"private": true,
+	"bin": {
+		"cms": "./bin/run.js"
+	},
+	"type": "module",
+	"imports": {
+		"#cli/*": {
+			"types": "./src/*.js",
+			"default": "./src/*"
+		}
+	},
+	"exports": {
+		"./package.json": "./package.json",
+		"./waku-config": "./dist/waku-config.js"
+	},
+	"scripts": {
+		"build": "tsc -p tsconfig.json",
+		"typecheck": "tsc --noEmit -p tsconfig.json",
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"@oclif/core": "^5.1.7",
+		"@repo/config": "workspace:*",
+		"@repo/runtime": "workspace:*",
+		"jiti": "^2.7.0"
+	},
+	"devDependencies": {
+		"@types/node": "^26.6.5",
+		"typescript": "^7.0.2",
+		"vitest": "^5.0.3"
+	},
+	"oclif": {
+		"commands": {
+			"strategy": "pattern",
+			"target": "./dist/commands"
+		},
+		"topicSeparator": " "
+	}
+}
