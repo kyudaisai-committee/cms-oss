@@ -8,13 +8,20 @@
 	"type": "module",
 	"imports": {
 		"#cli/*": {
-			"types": "./src/*.js",
-			"default": "./src/*"
+			"types": "./src/*.ts",
+			"default": "./dist/*.js"
 		}
 	},
 	"exports": {
 		"./package.json": "./package.json",
-		"./waku-config": "./dist/waku-config.js"
+		"./config": {
+			"types": "./dist/config.d.ts",
+			"default": "./dist/config.js"
+		},
+		"./db/schema": {
+			"types": "./dist/db/schema.d.ts",
+			"default": "./dist/db/schema.js"
+		}
 	},
 	"scripts": {
 		"build": "tsc -p tsconfig.json",
