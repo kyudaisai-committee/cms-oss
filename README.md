@@ -50,6 +50,18 @@ API のベースは `/api/v1` です。
 
 ## Cloudflare と D1 schema
 
+CMS と利用側プロジェクトの責任分担は次のとおりです。
+
+| 管理対象                                                       | 所有・管理する側   |
+| -------------------------------------------------------------- | ------------------ |
+| CMS 本体と現行の Drizzle schema                                | CMS 側             |
+| DB 変更の仕様、データ変換規則、移行手順                        | CMS 側             |
+| 利用先固有の設定、CMS の依存バージョンと lockfile              | 利用側プロジェクト |
+| Drizzle Kit 設定、migration SQL、snapshot、journal             | 利用側プロジェクト |
+| Cloudflare リソース、Secrets、D1 のデータと migration 適用履歴 | 利用側             |
+
+migration は利用側プロジェクトで生成・検証し、利用側が適用するタイミングを決めます。CMS の依存更新によって、利用側の設定や migration 履歴を上書き・初期化しません。外部配布対応で導入する生成プロジェクトには、再生成できるファイルだけを置き、migration 履歴やローカル D1/R2 の永続状態を含めない方針です。
+
 `apps/web/wrangler.toml` は Worker 名、D1 database ID、R2 bucket、route、Cloudflare Access の例示値を含みます。deploy 前に対象 Cloudflare アカウントの値へ置き換え、必要な D1 database と R2 bucket を作成してください。binding 名 `DB`、`ASSETS`、`STATIC_ASSETS` はアプリが参照するため維持してください。
 
 DB schema は `packages/core/src/db/schema.ts` が現行定義です。このリポジトリは migration SQL、Drizzle Kit の設定、migration journal を配布せず、初期 migration も生成しません。新しい DB を用意する利用者は現行 schema から初期 DDL を生成して適用し、その後の migration SQL と適用履歴も自身の運用環境で管理してください。既存 DB を更新する場合は、適用済みの履歴を維持したうえで、その DB の schema から現行 schema への差分 migration を作成・確認してから適用してください。既存 SQL、Drizzle snapshot / journal、D1 の適用履歴は利用者の運用資産として保持し、実 DB の schema が現行定義と一致している場合は初期 DDL の再適用や履歴の reset は不要です。Worker の deploy は migration を実行しません。
