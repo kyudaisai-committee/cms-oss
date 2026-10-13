@@ -1,0 +1,39 @@
+#:schema node_modules/wrangler/config-schema.json
+
+# Replace the example resource values before deploying.
+# The Cloudflare Vite plugin uses this Worker entry and the Waku client output
+# as the Workers Assets directory during deployment.
+name = "cms"
+main = "./src/waku.server.ts"
+compatibility_date = "2026-09-25"
+compatibility_flags = ["nodejs_als"]
+workers_dev = false
+
+[cache]
+enabled = true
+
+[assets]
+directory = "./dist/public"
+binding = "STATIC_ASSETS"
+
+[vars]
+ACCESS_TEAM_DOMAIN = "example.cloudflareaccess.com"
+ACCESS_AUDIENCE = "replace-with-cloudflare-access-audience"
+
+[[routes]]
+custom_domain = true
+pattern = "cms.example.com"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cms-local"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+[[r2_buckets]]
+binding = "ASSETS"
+bucket_name = "cms-assets"
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+invocation_logs = true

@@ -1,0 +1,69 @@
+.markdownEditor {
+	& [data-markdown-heading-marker="true"] {
+		color: transparent;
+		font-size: 0;
+		line-height: 0;
+		white-space: pre;
+	}
+
+	& [data-markdown-heading-marker="true"][data-markdown-heading-marker-active="true"] {
+		color: var(--text-color-kumo-subtle);
+		font-size: inherit;
+		line-height: inherit;
+	}
+
+	& [data-markdown-quote-marker="true"] {
+		color: transparent;
+		font-size: 0;
+		line-height: 0;
+		white-space: pre;
+	}
+
+	& [data-markdown-quote-marker="true"][data-markdown-quote-marker-active="true"] {
+		color: var(--text-color-kumo-subtle);
+		font-size: inherit;
+		line-height: inherit;
+	}
+
+	& [data-markdown-inline-marker="true"] {
+		color: transparent;
+		font-size: 0;
+		line-height: 0;
+		white-space: pre;
+	}
+
+	& [data-markdown-inline-marker="true"][data-markdown-inline-marker-active="true"] {
+		color: var(--text-color-kumo-subtle);
+		font-size: inherit;
+		line-height: inherit;
+	}
+
+	& [data-structured-link="true"] {
+		& [data-role="prefix"],
+		& [data-role="separator"],
+		& [data-role="url"],
+		& [data-role="suffix"] {
+			color: transparent;
+			font-size: 0;
+			line-height: 0;
+			white-space: pre;
+		}
+
+		&[data-active="true"] {
+			& [data-role="prefix"],
+			& [data-role="separator"],
+			& [data-role="url"],
+			& [data-role="suffix"] {
+				color: inherit;
+				font-size: inherit;
+				line-height: inherit;
+			}
+
+			& [data-role="prefix"],
+			& [data-role="separator"],
+			& [data-role="suffix"] {
+				color: var(--text-color-kumo-subtle);
+			}
+		}
+	}
+}

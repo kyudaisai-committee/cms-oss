@@ -1,0 +1,39 @@
+{
+	"name": "@repo/core",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"imports": {
+		"#core/*": {
+			"types": "./src/*.js",
+			"default": "./src/*"
+		}
+	},
+	"exports": {
+		"./dto": "./src/dto.ts",
+		"./input": "./src/input.ts",
+		"./import-plan": "./src/import-plan.ts",
+		"./repository.server": "./src/repository.server.ts",
+		"./service.server": "./src/service.server.ts",
+		"./types": "./src/types.ts",
+		"./db.server": "./src/db.server.ts",
+		"./db/schema": "./src/db/schema.ts"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit -p tsconfig.json",
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"@hono/zod-openapi": "^1.6.3",
+		"drizzle-orm": "^0.45.4",
+		"hono": "^4.13.13",
+		"server-only": "^0.0.1",
+		"zod": "^4.6.5"
+	},
+	"devDependencies": {
+		"@types/node": "^26.6.5",
+		"drizzle-kit": "^0.31.11",
+		"typescript": "^7.0.2",
+		"vitest": "^5.0.3"
+	}
+}

@@ -1,0 +1,46 @@
+{
+	"name": "@repo/editor",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"imports": {
+		"#editor/*": {
+			"types": "./src/*.js",
+			"default": "./src/*"
+		}
+	},
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit -p tsconfig.json",
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"@lexical/code": "^0.52.0",
+		"@lexical/link": "^0.52.0",
+		"@lexical/list": "^0.52.0",
+		"@lexical/markdown": "^0.52.0",
+		"@lexical/react": "^0.52.0",
+		"@lexical/rich-text": "^0.52.0",
+		"@lexical/selection": "^0.52.0",
+		"lexical": "^0.52.0",
+		"remark-gfm": "^4.0.1",
+		"remark-parse": "^11.0.0",
+		"unified": "^11.0.5"
+	},
+	"devDependencies": {
+		"@types/node": "^26.6.5",
+		"@types/react": "^19.3.0",
+		"@types/react-dom": "^19.3.0",
+		"typescript": "^7.0.2",
+		"vite": "^8.3.4",
+		"vitest": "^5.0.3"
+	},
+	"peerDependencies": {
+		"@cloudflare/kumo": "^2.14.0",
+		"lucide-react": "^1.48.0",
+		"react": "^19.3.0",
+		"react-dom": "^19.3.0"
+	}
+}

@@ -1,0 +1,91 @@
+import { Tabs, cn, type TabsItem } from "@cloudflare/kumo";
+import { ReactNode } from "react";
+
+export const KUMO_PAGE_HEADER_VARIANTS = {
+	spacing: {
+		compact: {
+			classes: "gap-1",
+			description: "Compact spacing between header elements",
+		},
+		base: {
+			classes: "gap-2",
+			description: "Default spacing between header elements",
+		},
+		relaxed: {
+			classes: "gap-4",
+			description: "Relaxed spacing for more prominent headers",
+		},
+	},
+} as const;
+
+export const KUMO_PAGE_HEADER_DEFAULT_VARIANTS = {
+	spacing: "base",
+} as const;
+
+export type KumoPageHeaderSpacing = keyof typeof KUMO_PAGE_HEADER_VARIANTS.spacing;
+
+export interface KumoPageHeaderVariantsProps {
+	spacing?: KumoPageHeaderSpacing;
+}
+
+export function pageHeaderVariants({
+	spacing = KUMO_PAGE_HEADER_DEFAULT_VARIANTS.spacing,
+}: KumoPageHeaderVariantsProps = {}) {
+	return cn(
+		"bg-kumo-canvas sticky top-0 z-10 flex flex-col",
+		KUMO_PAGE_HEADER_VARIANTS.spacing[spacing].classes,
+	);
+}
+
+export interface PageHeaderProps extends KumoPageHeaderVariantsProps {
+	breadcrumbs: ReactNode;
+	title?: string;
+	description?: string;
+	tabs?: TabsItem[];
+	defaultTab?: string;
+	onValueChange?: (value: string) => void;
+	className?: string;
+	children?: React.ReactNode;
+}
+
+export function PageHeader({
+	breadcrumbs,
+	title,
+	description,
+	tabs,
+	defaultTab,
+	onValueChange,
+	spacing = "base",
+	className,
+	children,
+}: PageHeaderProps) {
+	return (
+		<div className={cn(pageHeaderVariants({ spacing }), className)}>
+			<div className="border-kumo-line border-b">{breadcrumbs}</div>
+
+			{(title || description) && (
+				<div className="flex flex-col gap-2 py-3 pl-3">
+					{title && (
+						<h1 className="font-heading text-kumo-default text-3xl font-semibold">{title}</h1>
+					)}
+					{description && <p className="text-kumo-subtle max-w-prose text-base">{description}</p>}
+				</div>
+			)}
+
+			{tabs && (
+				<div className="border-kumo-line flex w-full items-center justify-between border-b pt-1 pb-3 pl-3">
+					<Tabs
+						tabs={tabs}
+						{...(defaultTab === undefined ? {} : { selectedValue: defaultTab })}
+						onValueChange={(nextValue) => {
+							const stringValue = String(nextValue);
+							onValueChange?.(stringValue);
+						}}
+					/>
+
+					<div className="flex items-center gap-2">{children}</div>
+				</div>
+			)}
+		</div>
+	);
+}

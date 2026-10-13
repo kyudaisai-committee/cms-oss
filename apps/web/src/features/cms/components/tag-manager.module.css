@@ -1,0 +1,45 @@
+.tagDeleteTrigger {
+	display: inline-flex;
+	padding: 0;
+	cursor: pointer;
+}
+
+.tagDeleteTrigger:focus-visible {
+	outline: 2px solid var(--color-kumo-focus);
+	outline-offset: 2px;
+}
+
+.tagDeleteBadge {
+	cursor: pointer;
+}
+
+.tagDeleteBadge > span:first-child {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+}
+
+.tagDeleteBadge > span:first-child::after {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 11px;
+	font-weight: 500;
+	line-height: 1;
+	content: "";
+}
+
+.tagDeleteTrigger:hover .tagDeleteBadge > span:first-child,
+.tagDeleteTrigger:focus-visible .tagDeleteBadge > span:first-child {
+	background-color: transparent;
+}
+
+.tagDeleteTrigger:hover .tagDeleteBadge > span:first-child::after,
+.tagDeleteTrigger:focus-visible .tagDeleteBadge > span:first-child::after {
+	color: currentColor;
+	content: "×";
+}

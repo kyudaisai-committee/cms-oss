@@ -1,0 +1,10 @@
+{
+	"extends": "../../tsconfig.json",
+	"include": ["src/**/*.ts", "src/**/*.tsx", "e2e/**/*.ts", "worker-configuration.d.ts"],
+	"compilerOptions": {
+		"types": ["node", "vite/client"],
+		"paths": {
+			"#web/*": ["./src/*"]
+		}
+	}
+}
