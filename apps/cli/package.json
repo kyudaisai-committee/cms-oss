@@ -33,6 +33,7 @@
 		"@oclif/core": "^5.1.7",
 		"@repo/config": "workspace:*",
 		"@repo/core": "workspace:*",
+		"drizzle-kit": "^0.31.11",
 		"jiti": "^2.7.0",
 		"wrangler": "^4.149.0"
 	},
