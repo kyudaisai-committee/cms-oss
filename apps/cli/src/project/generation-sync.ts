@@ -33,7 +33,7 @@ export async function synchronizeGeneratedProject(
 	const previousPaths = await readManagedPaths(destinationDirectory);
 	const nextPaths = await readManagedPaths(sourceDirectory);
 	await cleanSynchronizationTemps(destinationDirectory);
-	await synchronizeDirectory(sourceDirectory, destinationDirectory);
+	await synchronizeGeneratedContents(sourceDirectory, destinationDirectory);
 	const nextPathSet = new Set(nextPaths);
 	const obsoletePaths = previousPaths
 		.filter((path) => !nextPathSet.has(path))
@@ -41,6 +41,10 @@ export async function synchronizeGeneratedProject(
 	for (const path of obsoletePaths) {
 		await removeManagedPath(destinationDirectory, path);
 	}
+	await synchronizeEntry(
+		join(sourceDirectory, manifestName),
+		join(destinationDirectory, manifestName),
+	);
 }
 
 export async function recoverInterruptedGeneration(cmsDirectory: string): Promise<void> {
@@ -135,6 +139,14 @@ async function cleanSynchronizationTemps(directory: string): Promise<void> {
 async function synchronizeDirectory(source: string, destination: string): Promise<void> {
 	await mkdir(destination, { recursive: true });
 	for (const entry of await readdir(source, { withFileTypes: true })) {
+		await synchronizeEntry(join(source, entry.name), join(destination, entry.name));
+	}
+}
+
+async function synchronizeGeneratedContents(source: string, destination: string): Promise<void> {
+	await mkdir(destination, { recursive: true });
+	for (const entry of await readdir(source, { withFileTypes: true })) {
+		if (entry.name === manifestName) continue;
 		await synchronizeEntry(join(source, entry.name), join(destination, entry.name));
 	}
 }

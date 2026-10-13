@@ -17,6 +17,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { ensureStarterFiles, generateCmsProject } from "./generate.js";
+import { synchronizeGeneratedProject } from "./generation-sync.js";
 import { resolveProjectPaths } from "./paths.js";
 
 describe("generated consumer project", () => {
@@ -125,6 +126,58 @@ describe("generated consumer project", () => {
 			);
 			await expect(access(temporaryDirectory)).rejects.toMatchObject({ code: "ENOENT" });
 			await expect(access(backupDirectory)).rejects.toMatchObject({ code: "ENOENT" });
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	it("keeps the previous manifest until obsolete cleanup succeeds", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "cms-cli-generate-manifest-recovery-"));
+		const sourceDirectory = join(directory, "source");
+		const destinationDirectory = join(directory, ".cms");
+		const manifestPath = join(destinationDirectory, ".cms-generated.json");
+		const previousManifest = {
+			managedPaths: [".cms-generated.json", "blocked/old", "obsolete/file", "package.json"],
+		};
+		const nextManifest = { managedPaths: [".cms-generated.json", "package.json"] };
+		const previousManifestContents = `${JSON.stringify(previousManifest, null, 2)}\n`;
+
+		try {
+			await mkdir(sourceDirectory, { recursive: true });
+			await mkdir(destinationDirectory, { recursive: true });
+			await mkdir(join(destinationDirectory, "obsolete"), { recursive: true });
+			await writeFile(join(sourceDirectory, "package.json"), '{"name":"updated"}\n');
+			await writeFile(
+				join(sourceDirectory, ".cms-generated.json"),
+				`${JSON.stringify(nextManifest, null, 2)}\n`,
+			);
+			await writeFile(manifestPath, previousManifestContents);
+			await writeFile(join(destinationDirectory, "package.json"), '{"name":"old"}\n');
+			await writeFile(join(destinationDirectory, "blocked"), "prevents obsolete cleanup");
+			await writeFile(join(destinationDirectory, "obsolete", "file"), "obsolete managed file");
+
+			await expect(
+				synchronizeGeneratedProject(sourceDirectory, destinationDirectory),
+			).rejects.toThrow();
+			expect(await readFile(manifestPath, "utf8")).toBe(previousManifestContents);
+			expect(await readFile(join(destinationDirectory, "package.json"), "utf8")).toBe(
+				'{"name":"updated"}\n',
+			);
+
+			await rm(join(destinationDirectory, "blocked"));
+			await mkdir(join(destinationDirectory, "blocked"));
+			await writeFile(join(destinationDirectory, "blocked", "old"), "obsolete managed file");
+			await synchronizeGeneratedProject(sourceDirectory, destinationDirectory);
+
+			expect(await readFile(manifestPath, "utf8")).toBe(
+				`${JSON.stringify(nextManifest, null, 2)}\n`,
+			);
+			await expect(access(join(destinationDirectory, "blocked", "old"))).rejects.toMatchObject({
+				code: "ENOENT",
+			});
+			await expect(access(join(destinationDirectory, "obsolete", "file"))).rejects.toMatchObject({
+				code: "ENOENT",
+			});
 		} finally {
 			await rm(directory, { recursive: true, force: true });
 		}
