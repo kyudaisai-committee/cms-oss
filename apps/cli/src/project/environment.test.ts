@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtempDisposable } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 
@@ -11,7 +11,9 @@ import { resolveProjectPaths } from "./paths.js";
 
 describe("createProjectEnvironment", () => {
 	it("exposes only the five display settings and uses consumer persistence paths", async () => {
-		const directory = await mkdtemp(join(tmpdir(), "cms-cli-environment-"));
+		await using temporaryDirectory = await mkdtempDisposable(
+			join(tmpdir(), "cms-cli-environment-"),
+		);
 		const previous = new Map<string, string | undefined>([
 			["VITE_CMS_NAME", process.env.VITE_CMS_NAME],
 			["VITE_PRIVATE_TOKEN", process.env.VITE_PRIVATE_TOKEN],
@@ -25,7 +27,7 @@ describe("createProjectEnvironment", () => {
 				iconUrl: "https://example.test/cms.svg",
 				cloudflare: { accessAudience: "private-audience" },
 			});
-			const paths = resolveProjectPaths(directory);
+			const paths = resolveProjectPaths(temporaryDirectory.path);
 			const environment = createProjectEnvironment(config, paths, "production");
 
 			expect(
@@ -44,7 +46,9 @@ describe("createProjectEnvironment", () => {
 			expect(environment.VITE_PRIVATE_TOKEN).toBeUndefined();
 			expect(environment.ACCESS_AUDIENCE).toBeUndefined();
 			expect(environment.CMS_ENVIRONMENT_NAME).toBe("production");
-			expect(environment.CMS_WRANGLER_STATE_DIR).toBe(join(directory, ".wrangler", "state"));
+			expect(environment.CMS_WRANGLER_STATE_DIR).toBe(
+				join(temporaryDirectory.path, ".wrangler", "state"),
+			);
 			expect(environment.PATH?.split(delimiter)[0]).toBe(
 				join(paths.packageRoot, "node_modules", ".bin"),
 			);
@@ -53,7 +57,6 @@ describe("createProjectEnvironment", () => {
 				if (value === undefined) delete process.env[name];
 				else process.env[name] = value;
 			}
-			await rm(directory, { recursive: true, force: true });
 		}
 	});
 });
