@@ -1,0 +1,19 @@
+{
+	"name": "@repo/cli",
+	"version": "0.1.0",
+	"bin": {
+		"cms": "./bin/run.js"
+	},
+	"type": "module",
+	"scripts": {
+		"prepare": "node prepare.mjs"
+	},
+	"devEngines": {
+		"runtime": {
+			"name": "node",
+			"version": "26.11.1",
+			"onFail": "download"
+		}
+	},
+	"packageManager": "pnpm@12.11.2"
+}
