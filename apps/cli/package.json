@@ -18,7 +18,8 @@
 	},
 	"scripts": {
 		"build": "tsc -p tsconfig.json",
-		"typecheck": "tsc --noEmit -p tsconfig.json",
+		"typecheck": "pnpm run typecheck:config && tsc --noEmit -p tsconfig.json",
+		"typecheck:config": "tsc --ignoreConfig --allowJs --checkJs --noEmit --strict --module nodenext --moduleResolution nodenext --skipLibCheck oclif.config.mjs",
 		"test": "vitest run"
 	},
 	"dependencies": {
