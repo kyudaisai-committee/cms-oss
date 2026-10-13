@@ -34,10 +34,19 @@ export abstract class BaseCommand extends Command {
 		flags: ProjectFlags,
 		operation: (context: ProjectContext) => Promise<T>,
 	): Promise<T> {
+		return this.withProjectContext(flags, async (context) => {
+			await generateCmsProject(context.paths);
+			return operation(context);
+		});
+	}
+
+	protected async withProjectContext<T>(
+		flags: ProjectFlags,
+		operation: (context: ProjectContext) => Promise<T>,
+	): Promise<T> {
 		const paths = resolveProjectPaths(flags.cwd ?? process.cwd(), flags.config);
 		return withProjectLock(paths.projectRoot, async () => {
 			const loadedConfig = await loadCmsConfig(paths.configPath, flags.env);
-			await generateCmsProject(paths);
 			return operation({ paths, config: loadedConfig });
 		});
 	}
