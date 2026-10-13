@@ -69,6 +69,67 @@ describe("generated consumer project", () => {
 		}
 	});
 
+	it("updates changed files without rewriting other generated files and removes obsolete entries", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "cms-cli-generate-update-"));
+		const webSourceDirectory = join(directory, "web-source");
+		const paths = { ...resolveProjectPaths(directory), webSourceDirectory };
+
+		try {
+			await createWebSource(webSourceDirectory);
+			await generateCmsProject(paths);
+			const stableFilePath = join(paths.cmsDirectory, "tsconfig.json");
+			const obsoletePath = join(paths.cmsDirectory, "src", "obsolete.ts");
+			const stableModificationTime = new Date("2000-01-01T00:00:00.000Z");
+			await utimes(stableFilePath, stableModificationTime, stableModificationTime);
+			await writeFile(obsoletePath, "obsolete generated file");
+			const manifestPath = join(paths.cmsDirectory, ".cms-generated.json");
+			const manifest: { managedPaths: string[] } = JSON.parse(await readFile(manifestPath, "utf8"));
+			manifest.managedPaths.push("src/obsolete.ts");
+			await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+			const alternateConfigPath = join(directory, "alternate.config.ts");
+			await writeFile(alternateConfigPath, "export default {};\n");
+			await generateCmsProject({ ...paths, configPath: alternateConfigPath });
+
+			expect(await readFile(join(paths.cmsDirectory, "waku.config.ts"), "utf8")).toContain(
+				'from "../alternate.config.ts"',
+			);
+			expect((await stat(stableFilePath)).mtimeMs).toBe(stableModificationTime.getTime());
+			await expect(access(obsoletePath)).rejects.toMatchObject({ code: "ENOENT" });
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	it("restores a previous generated project and removes interrupted generation files", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "cms-cli-generate-recovery-"));
+		const webSourceDirectory = join(directory, "web-source");
+		const paths = { ...resolveProjectPaths(directory), webSourceDirectory };
+		const backupDirectory = `${paths.cmsDirectory}.old-interrupted`;
+		const temporaryDirectory = `${paths.cmsDirectory}.tmp-interrupted`;
+
+		try {
+			await createWebSource(webSourceDirectory);
+			await mkdir(backupDirectory, { recursive: true });
+			await writeFile(join(backupDirectory, "recovered-marker"), "previous project");
+			await mkdir(temporaryDirectory, { recursive: true });
+			await writeFile(join(temporaryDirectory, "partial-file"), "incomplete project");
+
+			await generateCmsProject(paths);
+
+			expect(await readFile(join(paths.cmsDirectory, "recovered-marker"), "utf8")).toBe(
+				"previous project",
+			);
+			expect(await readFile(join(paths.cmsDirectory, "waku.config.ts"), "utf8")).toContain(
+				'from "../cms.config.ts"',
+			);
+			await expect(access(temporaryDirectory)).rejects.toMatchObject({ code: "ENOENT" });
+			await expect(access(backupDirectory)).rejects.toMatchObject({ code: "ENOENT" });
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
 	it("leaves the current project intact if generation fails before replacement", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "cms-cli-generate-failure-"));
 		const webSourceDirectory = join(directory, "incomplete-web-source");

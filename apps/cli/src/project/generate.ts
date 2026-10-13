@@ -1,19 +1,12 @@
 import { randomUUID } from "node:crypto";
-import {
-	access,
-	lstat,
-	mkdir,
-	open,
-	readdir,
-	readFile,
-	readlink,
-	rename,
-	rm,
-	symlink,
-	writeFile,
-} from "node:fs/promises";
+import { access, mkdir, open, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 
+import {
+	recoverInterruptedGeneration,
+	synchronizeGeneratedProject,
+	writeGenerationManifest,
+} from "#cli/project/generation-sync";
 import { linkProductDependencies } from "#cli/project/package-dependencies";
 import type { ProjectPaths } from "#cli/project/paths";
 
@@ -52,72 +45,19 @@ export async function ensureStarterFiles(paths: ProjectPaths): Promise<void> {
 }
 
 export async function generateCmsProject(paths: ProjectPaths): Promise<void> {
+	await recoverInterruptedGeneration(paths.cmsDirectory);
 	const webSource = await resolveWebSource(paths);
 	const generationId = randomUUID();
 	const temporaryDirectory = `${paths.cmsDirectory}.tmp-${generationId}`;
-	const backupDirectory = `${paths.cmsDirectory}.old-${generationId}`;
-	let movedExistingProject = false;
 
 	await mkdir(temporaryDirectory, { recursive: true });
 	try {
 		await populateGeneratedProject(temporaryDirectory, webSource, paths);
-		if (await haveSameContents(temporaryDirectory, paths.cmsDirectory)) {
-			await rm(temporaryDirectory, { recursive: true, force: true });
-			return;
-		}
-		try {
-			await rename(paths.cmsDirectory, backupDirectory);
-			movedExistingProject = true;
-		} catch (error) {
-			if (!isMissingPath(error)) throw error;
-		}
-		await rename(temporaryDirectory, paths.cmsDirectory);
-		if (movedExistingProject) {
-			await rm(backupDirectory, { recursive: true, force: true });
-		}
-	} catch (error) {
+		await writeGenerationManifest(temporaryDirectory);
+		await synchronizeGeneratedProject(temporaryDirectory, paths.cmsDirectory);
+	} finally {
 		await rm(temporaryDirectory, { recursive: true, force: true });
-		if (movedExistingProject) {
-			await rename(backupDirectory, paths.cmsDirectory);
-		}
-		throw error;
 	}
-}
-
-async function haveSameContents(leftDirectory: string, rightDirectory: string): Promise<boolean> {
-	const entries = await Promise.all([
-		readdir(leftDirectory, { withFileTypes: true }),
-		readdir(rightDirectory, { withFileTypes: true }),
-	]).catch((error: unknown) => {
-		if (isMissingPath(error)) return undefined;
-		throw error;
-	});
-	if (!entries) return false;
-	const [leftEntries, rightEntries] = entries;
-
-	if (leftEntries.length !== rightEntries.length) return false;
-	const rightNames = new Set(rightEntries.map((entry) => entry.name));
-	for (const entry of leftEntries) {
-		if (!rightNames.has(entry.name)) return false;
-		const leftPath = join(leftDirectory, entry.name);
-		const rightPath = join(rightDirectory, entry.name);
-		const [leftStat, rightStat] = await Promise.all([lstat(leftPath), lstat(rightPath)]);
-		if (leftStat.isSymbolicLink() !== rightStat.isSymbolicLink()) return false;
-		if (leftStat.isSymbolicLink()) {
-			if ((await readlink(leftPath)) !== (await readlink(rightPath))) return false;
-		} else if (leftStat.isDirectory() && rightStat.isDirectory()) {
-			if (!(await haveSameContents(leftPath, rightPath))) return false;
-		} else if (leftStat.isFile() && rightStat.isFile()) {
-			const [leftContents, rightContents] = await Promise.all([
-				readFile(leftPath),
-				readFile(rightPath),
-			]);
-			if (!leftContents.equals(rightContents)) return false;
-		} else {
-			return false;
-		}
-	}
-	return true;
 }
 
 export async function withProjectLock<T>(
@@ -268,10 +208,6 @@ async function writeFileAtomically(path: string, content: string): Promise<void>
 	const temporaryPath = `${path}.tmp-${randomUUID()}`;
 	await writeFile(temporaryPath, content, { flag: "wx" });
 	await rename(temporaryPath, path);
-}
-
-function isMissingPath(error: unknown): boolean {
-	return hasErrorCode(error, "ENOENT");
 }
 
 function isAlreadyExists(error: unknown): boolean {
