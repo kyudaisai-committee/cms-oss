@@ -10,6 +10,7 @@ import {
 	utimes,
 	writeFile,
 } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -38,8 +39,19 @@ describe("generated consumer project", () => {
 			await generateCmsProject(paths);
 			const generatedConfigPath = join(paths.cmsDirectory, "waku.config.ts");
 			const generatedConfig = await readFile(generatedConfigPath, "utf8");
+			const generatedRequire = createRequire(join(paths.cmsDirectory, "package.json"));
+			const productRequire = createRequire(join(paths.packageRoot, "package.json"));
 			expect(generatedConfig).toContain('from "../cms.config.ts"');
 			expect(generatedConfig).toContain('from "@repo/cli/web/waku.config.ts"');
+			expect(generatedRequire.resolve("@repo/core/db/schema")).toBe(
+				productRequire.resolve("@repo/core/db/schema"),
+			);
+			expect(await readlink(join(paths.cmsDirectory, "node_modules", "@repo", "cli"))).toBe(
+				paths.packageRoot,
+			);
+			expect(await readlink(join(paths.cmsDirectory, "node_modules", ".bin"))).toBe(
+				join(paths.packageRoot, "node_modules", ".bin"),
+			);
 			expect(await readlink(join(paths.cmsDirectory, "src", "pages"))).toBe(
 				join(webSourceDirectory, "pages"),
 			);

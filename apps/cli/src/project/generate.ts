@@ -14,6 +14,7 @@ import {
 } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 
+import { linkProductDependencies } from "#cli/project/package-dependencies";
 import type { ProjectPaths } from "#cli/project/paths";
 
 const sourceEntries = ["components", "features", "lib", "middleware", "pages"] as const;
@@ -152,6 +153,7 @@ async function populateGeneratedProject(
 ): Promise<void> {
 	const srcDirectory = join(generatedDirectory, "src");
 	await mkdir(srcDirectory, { recursive: true });
+	await linkProductDependencies(generatedDirectory, paths.packageRoot);
 	await writeFile(
 		join(generatedDirectory, "package.json"),
 		`${JSON.stringify(

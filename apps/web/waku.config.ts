@@ -17,6 +17,7 @@ export function createCmsWakuConfig(cloudflareConfig?: CmsCloudflareConfig) {
 	return defineConfig({
 		unstable_adapter: "waku/adapters/cloudflare",
 		vite: {
+			resolve: { dedupe: ["react", "react-dom", "react-server-dom-webpack"] },
 			server: {
 				watch: {
 					ignored: /[\\/]\.wrangler[\\/]/,
