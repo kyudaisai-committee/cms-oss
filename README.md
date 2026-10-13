@@ -62,9 +62,11 @@ CMS と利用側プロジェクトの責任分担は次のとおりです。
 
 migration は利用側プロジェクトで生成・検証し、利用側が適用するタイミングを決めます。CMS の依存更新によって、利用側の設定や migration 履歴を上書き・初期化しません。`cms init` が生成する `.cms/` には再生成可能な接続ファイルだけを置き、migration 履歴やローカル D1/R2 の永続状態は含めません。
 
+リポジトリから配布物を作る場合は、ルートで `pnpm run build:product`、`pnpm run pack:product --pack-destination /tmp/cms-product` を実行します。利用側プロジェクトでは生成された tarball を指定して `pnpm add /absolute/path/to/repo-cli-0.1.0.tgz` を実行し、続けて `pnpm exec cms init` を実行します。これはローカル tarball からの導入手順で、npm registry への公開は含みません。
+
 利用側では `cms init` が `cms.config.ts`、`drizzle.config.ts`、再生成可能な `.cms/` を用意します。`cms.config.ts` に対象 Worker と D1 の名前・IDを設定し、利用側が所有する Wrangler 設定を `--wrangler-config` で選びます。`cms typegen` と D1 操作はこの既存設定を公式 Wrangler CLI に渡し、CMS が Wrangler 設定ファイルを生成・変更することはありません。環境を使う場合は、CMS 設定と Wrangler 設定の双方で同じ `--env` を選択します。
 
-初回導入では `cms migrate init` が現行 schema から初期 SQL、Drizzle snapshot / journal、migration 状態を利用側の `drizzle.config.ts` の `out` へ生成します。DB へは接続・適用しません。Wrangler の選択した D1 binding に `migrations_dir` を設定し、その値を Drizzle の `out`（既定値は `./drizzle`）に合わせてください。`cms d1 migrations list --local` で対象を確認し、利用側のローカル D1 に適用する場合は `cms d1 migrations apply --local` を明示的に実行します。リモート環境には `--remote` を指定します。どちらのコマンドも対象 D1、環境、既存設定の binding、Drizzle の出力先が一致しなければ実行を止めます。`--local` は `.wrangler/state` を使い、生成プロジェクトの Waku と同じ永続状態を参照します。
+初回導入では `cms migrate init` が現行 schema から初期 SQL、Drizzle snapshot / journal を `drizzle.config.ts` の `out`（既定値は `./drizzle`）へ生成し、migration 状態を固定の `drizzle/cms-state.json` に生成します。DB へは接続・適用しません。Wrangler の選択した D1 binding に `migrations_dir` を設定し、その値を Drizzle の `out` に合わせてください。`cms d1 migrations list --local` で対象を確認し、利用側のローカル D1 に適用する場合は `cms d1 migrations apply --local` を明示的に実行します。リモート環境には `--remote` を指定します。どちらのコマンドも対象 D1、環境、既存設定の binding、Drizzle の出力先が一致しなければ実行を止めます。`--local` は `.wrangler/state` を使い、生成プロジェクトの Waku と同じ永続状態を参照します。
 
 初期 migration の適用を確認してから `cms migrate mark-baseline --version 0.1.0` を実行し、利用側が管理する `drizzle/cms-state.json` に baseline を記録します。既存 DB の baseline は、実際の schema と D1 の `d1_migrations` 履歴を確認したうえで利用側が明示してください。`cms migrate` は依存更新後の変更を表示し、`cms migrate --codex` または `cms migrate --claude` は利用側 migration の準備を支援します。agent の終了だけでは準備済み状態を記録せず、レビュー後に `cms migrate mark-prepared --version <version>` を実行します。D1 適用履歴は Wrangler の `d1_migrations` にあり、CMS の migration 状態ファイルには複製しません。
 
