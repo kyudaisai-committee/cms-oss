@@ -1,4 +1,4 @@
-import { z } from "@hono/zod-openapi";
+import { z } from "zod";
 
 export const tagDtoSchema = z.object({
 	id: z.string().min(1),

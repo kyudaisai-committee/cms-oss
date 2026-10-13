@@ -1,10 +1,10 @@
 import "server-only";
 
 import type { InferSelectModel } from "drizzle-orm";
-import { HTTPException } from "hono/http-exception";
 
 import { assets, scopes } from "#core/db/schema";
 import { toAssetDto } from "#core/dto";
+import { CmsError } from "#core/errors";
 import { normalizeCreateAssetInput } from "#core/input";
 import { CmsRepository, isUniqueConstraintError } from "#core/repository.server";
 import type { CmsActor, AssetDto, CreateAssetInput } from "#core/types";
@@ -41,9 +41,7 @@ export class AssetService {
 	async createAsset(input: CreateAssetInput): Promise<AssetDto> {
 		const normalized = normalizeCreateAssetInput(input);
 		if (await this.repository.findAssetByObjectKey(this.scope.id, normalized.objectKey)) {
-			throw new HTTPException(409, {
-				message: "Asset object key is already in use in this scope.",
-			});
+			throw new CmsError("conflict", "Asset object key is already in use in this scope.");
 		}
 		const asset: AssetRecord = {
 			id: crypto.randomUUID(),
@@ -65,9 +63,7 @@ export class AssetService {
 			});
 		} catch (error) {
 			if (isUniqueConstraintError(error))
-				throw new HTTPException(409, {
-					message: "Asset object key is already in use in this scope.",
-				});
+				throw new CmsError("conflict", "Asset object key is already in use in this scope.");
 			throw error;
 		}
 		return toAssetDto(asset, scopeValue(this.scope));
@@ -75,13 +71,13 @@ export class AssetService {
 
 	async getAsset(id: string): Promise<AssetDto> {
 		const asset = await this.repository.findAssetById(this.scope.id, id);
-		if (!asset) throw new HTTPException(404, { message: "Asset was not found." });
+		if (!asset) throw new CmsError("not_found", "Asset was not found.");
 		return toAssetDto(asset, scopeValue(this.scope));
 	}
 
 	async deleteAsset(id: string) {
 		const asset = await this.repository.findAssetById(this.scope.id, id);
-		if (!asset) throw new HTTPException(404, { message: "Asset was not found." });
+		if (!asset) throw new CmsError("not_found", "Asset was not found.");
 		await this.repository.deleteAsset(id, {
 			actor: this.actor,
 			action: "asset.delete",

@@ -1,6 +1,6 @@
-import { z } from "@hono/zod-openapi";
 import type { Page } from "playwright-core";
 import { expect } from "vitest";
+import { z } from "zod";
 
 import { adminNewsPageSchema, dataImportRequestSchema } from "@repo/core/types";
 

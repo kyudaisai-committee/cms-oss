@@ -4,13 +4,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const cachePurge = vi.hoisted(() => vi.fn(async () => ({ success: true })));
 vi.mock("cloudflare:workers", () => ({ cache: { purge: cachePurge } }));
 
-import { localActor } from "#web/api/access.server";
-import { getDb } from "#web/lib/db.server";
+import { localActor } from "#api/access.server";
+import { getDb } from "#api/db.server";
 import { CmsRepository } from "@repo/core/repository.server";
 import { CmsService } from "@repo/core/service.server";
 import type { AdminNewsDto } from "@repo/core/types";
 
-import { publicApiApp } from "../app";
+import { createApiApp } from "../app";
 import type { ApiBindings } from "../context";
 import type { ApiEnv } from "../utils";
 import { adminNewsRoutes } from "./news";
@@ -20,7 +20,7 @@ function unusedR2Operation(): never {
 }
 
 const environment = {
-	DB: {} as unknown as Env["DB"],
+	DB: {} as unknown as ApiBindings["DB"],
 	ASSETS: {
 		head: unusedR2Operation,
 		get: async () => null,
@@ -31,6 +31,8 @@ const environment = {
 		list: unusedR2Operation,
 	},
 } satisfies ApiBindings;
+
+const publicApiApp = createApiApp({ apiName: "API tests" });
 
 function setup() {
 	const findScope = vi.spyOn(CmsRepository.prototype, "findScope").mockResolvedValue({

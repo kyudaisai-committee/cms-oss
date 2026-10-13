@@ -1,11 +1,11 @@
 import "server-only";
 
 import type { InferSelectModel } from "drizzle-orm";
-import { HTTPException } from "hono/http-exception";
 
 import { decodeCursor } from "#core/cursor";
 import { news, newsTranslations, scopes } from "#core/db/schema";
 import { toAdminNewsDto, toNewsSummaryDto, toPublishedNewsDto } from "#core/dto";
+import { CmsError } from "#core/errors";
 import {
 	normalizeCreateNewsInput,
 	normalizeCreateNewsTranslationInput,
@@ -78,7 +78,7 @@ export class NewsService {
 			normalizeSlug(slug),
 			normalizedLang,
 		);
-		if (!result) throw new HTTPException(404, { message: "News was not found." });
+		if (!result) throw new CmsError("not_found", "News was not found.");
 		return toPublishedNewsDto(
 			result.parent,
 			result.translation,
@@ -91,7 +91,7 @@ export class NewsService {
 		const limit = normalizeLimit(options.limit);
 		const pageNumber = options.page;
 		if (pageNumber !== undefined && (!Number.isSafeInteger(pageNumber) || pageNumber < 1)) {
-			throw new HTTPException(400, { message: "page must be a positive integer." });
+			throw new CmsError("validation", "page must be a positive integer.");
 		}
 		const tagSlug = options.tagSlug ? normalizeSlug(options.tagSlug, "tag") : undefined;
 		const lang = options.lang ? scopeLanguage(this.scope, options.lang) : undefined;
@@ -139,7 +139,7 @@ export class NewsService {
 				(lang) => canonicalizeStoredLanguage(lang) === normalized.lang,
 			)
 		) {
-			throw new HTTPException(400, { message: "lang is not available in this scope." });
+			throw new CmsError("validation", "lang is not available in this scope.");
 		}
 		const tagRows = await this.repository.findTagsByIds(this.scope.id, normalized.tagIds);
 		tagIdsFromRows(tagRows, normalized.tagIds);
@@ -148,9 +148,7 @@ export class NewsService {
 			normalized.slug,
 		);
 		if (existingParent)
-			throw new HTTPException(409, {
-				message: "News slug is already in use in this scope.",
-			});
+			throw new CmsError("conflict", "News slug is already in use in this scope.");
 		const now = new Date();
 		const newsItem: NewsRecord = {
 			id: crypto.randomUUID(),
@@ -201,9 +199,7 @@ export class NewsService {
 			]);
 		} catch (error) {
 			if (isUniqueConstraintError(error))
-				throw new HTTPException(409, {
-					message: "News slug is already in use in this scope.",
-				});
+				throw new CmsError("conflict", "News slug is already in use in this scope.");
 			throw error;
 		}
 		return this.getAdminNews(newsItem.id);
@@ -220,7 +216,7 @@ export class NewsService {
 		if (normalized.slug !== undefined) {
 			const conflict = await this.repository.findNewsParentBySlug(this.scope.id, targetSlug);
 			if (conflict && conflict.parent.id !== existing.parent.id) {
-				throw new HTTPException(409, { message: "News slug is already in use in this scope." });
+				throw new CmsError("conflict", "News slug is already in use in this scope.");
 			}
 		}
 		const now = new Date();
@@ -246,18 +242,16 @@ export class NewsService {
 					(lang) => canonicalizeStoredLanguage(lang) === targetLang,
 				)
 			) {
-				throw new HTTPException(400, { message: "lang is not available in this scope." });
+				throw new CmsError("validation", "lang is not available in this scope.");
 			}
 			const translation = await this.repository.findTranslation(existing.parent.id, targetLang);
-			if (!translation)
-				throw new HTTPException(404, { message: "News translation was not found." });
+			if (!translation) throw new CmsError("not_found", "News translation was not found.");
 			if (normalized.lang && normalized.lang !== canonicalizeStoredLanguage(translation.lang)) {
 				const targetTranslation = await this.repository.findTranslation(
 					existing.parent.id,
 					normalized.lang,
 				);
-				if (targetTranslation)
-					throw new HTTPException(409, { message: "News translation already exists." });
+				if (targetTranslation) throw new CmsError("conflict", "News translation already exists.");
 			}
 			const translationValues: Partial<NewsTranslationRecord> = {
 				updatedAt: now,
@@ -321,7 +315,7 @@ export class NewsService {
 		const existing = await requireNews(this.repository, this.scope.id, id);
 		const normalizedLang = scopeLanguage(this.scope, lang);
 		if (await this.repository.findTranslation(existing.parent.id, normalizedLang)) {
-			throw new HTTPException(409, { message: "News translation already exists." });
+			throw new CmsError("conflict", "News translation already exists.");
 		}
 		const normalized = normalizeCreateNewsTranslationInput(input);
 		const now = new Date();
@@ -361,7 +355,7 @@ export class NewsService {
 			);
 		} catch (error) {
 			if (isUniqueConstraintError(error))
-				throw new HTTPException(409, { message: "News translation already exists." });
+				throw new CmsError("conflict", "News translation already exists.");
 			throw error;
 		}
 		return this.getAdminNews(existing.parent.id, normalizedLang);
@@ -375,7 +369,7 @@ export class NewsService {
 		const existing = await requireNews(this.repository, this.scope.id, id);
 		const normalizedLang = scopeLanguage(this.scope, lang);
 		const translation = await this.repository.findTranslation(existing.parent.id, normalizedLang);
-		if (!translation) throw new HTTPException(404, { message: "News translation was not found." });
+		if (!translation) throw new CmsError("not_found", "News translation was not found.");
 		const normalized = normalizeUpdateNewsTranslationInput(input);
 		const now = new Date();
 		const values: Partial<NewsTranslationRecord> = {
@@ -412,7 +406,7 @@ export class NewsService {
 		const existing = await requireNews(this.repository, this.scope.id, id);
 		const normalizedLang = scopeLanguage(this.scope, lang);
 		const translation = await this.repository.findTranslation(existing.parent.id, normalizedLang);
-		if (!translation) throw new HTTPException(404, { message: "News translation was not found." });
+		if (!translation) throw new CmsError("not_found", "News translation was not found.");
 		return this.publishTranslation({ ...existing, translation }, input);
 	}
 
@@ -420,7 +414,7 @@ export class NewsService {
 		const existing = await requireNews(this.repository, this.scope.id, id);
 		const normalizedLang = scopeLanguage(this.scope, lang);
 		const translation = await this.repository.findTranslation(existing.parent.id, normalizedLang);
-		if (!translation) throw new HTTPException(404, { message: "News translation was not found." });
+		if (!translation) throw new CmsError("not_found", "News translation was not found.");
 		return this.unpublishTranslation({ ...existing, translation });
 	}
 
@@ -449,7 +443,7 @@ export class NewsService {
 				? (translation.publishedAt ?? new Date())
 				: new Date(input.publishedAt);
 		if (Number.isNaN(publishedAt.getTime()))
-			throw new HTTPException(400, { message: "publishedAt must be a valid ISO date." });
+			throw new CmsError("validation", "publishedAt must be a valid ISO date.");
 		const now = new Date();
 		const after = {
 			...changesForNews(existing.parent, translation),

@@ -1,0 +1,38 @@
+{
+	"name": "@repo/api",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"imports": {
+		"#api/*": {
+			"types": "./src/*.js",
+			"default": "./src/*"
+		}
+	},
+	"exports": {
+		"./access.server": "./src/access.server.ts",
+		"./client": "./src/client.ts",
+		"./contracts": "./src/contracts.ts",
+		"./db.server": "./src/db.server.ts",
+		"./server": "./src/server.ts"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit -p tsconfig.json",
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"@hono/swagger-ui": "^0.6.1",
+		"@hono/zod-openapi": "^1.6.3",
+		"@repo/core": "workspace:*",
+		"hono": "^4.13.13",
+		"jose": "^6.2.12",
+		"server-only": "^0.0.1",
+		"zod": "^4.6.5"
+	},
+	"devDependencies": {
+		"@cloudflare/workers-types": "^5.20261012.1",
+		"@types/node": "^26.6.5",
+		"typescript": "^7.0.2",
+		"vitest": "^5.0.3"
+	}
+}

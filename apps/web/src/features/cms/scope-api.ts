@@ -1,7 +1,6 @@
-import { createApiClient } from "#web/api/client";
+import { createApiClient } from "@repo/api/client";
+import { apiEnvelopeSchema, apiErrorEnvelopeSchema } from "@repo/api/contracts";
 import {
-	apiEnvelopeSchema,
-	apiErrorEnvelopeSchema,
 	scopeDtoSchema,
 	scopeEnsureInputSchema,
 	ensureScopeInputSchema,

@@ -1,4 +1,4 @@
-import { z } from "@hono/zod-openapi";
+import { z } from "zod";
 
 import { newsContentTypeSchema, newsStatusSchema } from "./common";
 import { dataExportScopeSchema, scopeDataExportSchema } from "./export";

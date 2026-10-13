@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { CmsError } from "#core/errors";
+
 import {
 	normalizeCreateNewsInput,
 	normalizeCreateTagInput,
@@ -43,7 +45,7 @@ describe("CMS input normalization", () => {
 				contentType: "link",
 				content: "not-a-url",
 			}),
-		).toThrow();
+		).toThrow(CmsError);
 	});
 
 	it("rejects invalid slugs", () => {

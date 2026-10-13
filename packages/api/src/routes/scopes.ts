@@ -1,11 +1,10 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 
-import { withPublicNewsCacheInvalidation } from "#web/api/cache.server";
-import { getDb } from "#web/lib/db.server";
+import { withPublicNewsCacheInvalidation } from "#api/cache.server";
+import { apiEnvelopeSchema, apiErrorEnvelopeSchema } from "#api/contracts";
+import { getDb } from "#api/db.server";
 import { CmsService } from "@repo/core/service.server";
 import {
-	apiEnvelopeSchema,
-	apiErrorEnvelopeSchema,
 	ensureScopeInputSchema,
 	scopeDtoSchema,
 	scopeEnsureInputSchema,

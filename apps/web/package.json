@@ -19,8 +19,7 @@
 	"dependencies": {
 		"@cloudflare/kumo": "^2.14.0",
 		"@date-fns/tz": "^1.5.0",
-		"@hono/swagger-ui": "^0.6.1",
-		"@hono/zod-openapi": "^1.6.3",
+		"@repo/api": "workspace:*",
 		"@repo/core": "workspace:*",
 		"@repo/editor": "workspace:*",
 		"@tanstack/react-form": "^1.33.5",
@@ -28,7 +27,6 @@
 		"date-fns": "^4.4.0",
 		"drizzle-orm": "^0.45.4",
 		"hono": "^4.13.13",
-		"jose": "^6.2.12",
 		"jotai": "^3.0.1",
 		"lucide-react": "^1.55.0",
 		"react": "^19.3.0",

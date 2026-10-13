@@ -11,6 +11,7 @@
 	},
 	"exports": {
 		"./dto": "./src/dto.ts",
+		"./errors": "./src/errors.ts",
 		"./input": "./src/input.ts",
 		"./import-plan": "./src/import-plan.ts",
 		"./repository.server": "./src/repository.server.ts",
@@ -24,9 +25,7 @@
 		"test": "vitest run"
 	},
 	"dependencies": {
-		"@hono/zod-openapi": "^1.6.3",
 		"drizzle-orm": "^0.45.4",
-		"hono": "^4.13.13",
 		"server-only": "^0.0.1",
 		"zod": "^4.6.5"
 	},

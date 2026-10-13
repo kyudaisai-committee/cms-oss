@@ -4,16 +4,20 @@ Waku 1.0.0-rc.3 と Cloudflare Workers を使った、年度 (`year`) × サイ�
 
 ## Workspace
 
-- `apps/web` は Waku の管理画面、CMS preview、Hono API route、Cloudflare Worker の入口と接続処理を持ちます。API と画面は同じ Worker で動作します。
-- `packages/core` は CMS の型・入力検証・DB schema・repository・service を持ちます。
-- `packages/editor` は Lexical エディター部品を持ちます。
-- D1 schema は `packages/core/src/db/schema.ts` で定義します。migration SQL と適用履歴は利用者が管理します。
+- `apps/web` は Waku の管理画面、CMS preview、Cloudflare Worker の入口と表示設定を持ちます。
+- `packages/api` は Hono API、HTTP 契約、OpenAPI、Cloudflare Access JWT 検証、D1/R2 接続、API cache を持ちます。単独の Worker は持たず、`apps/web` の Worker から同じ `/api/v1` URL で呼び出します。
+- `packages/core` は CMS の型・業務スキーマ・入力検証・業務処理・D1 schema (`packages/core/src/db/schema.ts`)・repository を持ちます。migration SQL と適用履歴は利用者が管理します。
+- `packages/editor` は CMS に依存しない Markdown エディター部品を持ちます。
 
-`apps/web` に Waku と Wrangler のアプリ固有コマンドを置き、ルートでは workspace 全体の検査を実行します。`pnpm verify` は全 package の型検査・テスト・build を対象にします。
+依存方向は `apps/web` から `packages/api`、`packages/core`、`packages/editor` に向かい、`packages/api` は `packages/core` を使います。`packages/*` は `apps/*` に依存しません。`core` と `editor` は互いに依存せず、各 workspace は公開 package export を通じて参照します。HTTP と UI の責務を `core` に持ち込みません。
+
+`@repo/api/server` の `createApiApp` は `apps/web` の Waku や表示設定に依存せず Hono app を生成します。D1/R2 と Access 設定はリクエスト時の Worker bindings から受け取ります。`packages/core` の service は D1 接続を受け取って業務処理を行い、`packages/editor` は CMS の型や設定なしで Markdown 編集に使えます。各 workspace は個別に型検査とテストを実行でき、Worker と URL を組み立てて deploy する実行単位は `apps/web` です。
+
+Waku と Wrangler のアプリ固有コマンドは `apps/web` に置きます。`packages/api` は同じ Worker に組み込む workspace で、独自の Worker entry、Wrangler 設定、deploy command は持ちません。ルートでは workspace 全体の検査を実行し、`pnpm verify` は全 package の型検査・テスト・build を対象にします。
 
 ## 開発
 
-依存関係をインストールした後、`pnpm --filter @repo/web run dev` で Waku の開発サーバーを起動します。開発サーバーは D1 schema を自動作成しません。利用者が `packages/core/src/db/schema.ts` を基に初期 DDL を生成・適用し、ローカルの Cloudflare binding を用意してください。migration SQL、Drizzle Kit 設定、適用履歴はこのリポジトリでは管理しません。Cloudflare Vite plugin と Wrangler は `apps/web/.wrangler/state` にローカル binding state を保存します。
+依存関係をインストールした後、`pnpm --filter @repo/web run dev` で Waku と API を含む Worker の開発サーバーを起動します。開発サーバーは D1 schema を自動作成しません。利用者が `packages/core/src/db/schema.ts` を基に初期 DDL を生成・適用し、ローカルの Cloudflare binding を用意してください。migration SQL、Drizzle Kit 設定、適用履歴はこのリポジトリでは管理しません。Cloudflare Vite plugin と Wrangler は `apps/web/.wrangler/state` にローカル binding state を保存します。
 
 開発時は Cloudflare の `workerd` が `eval()` を許可しないため、React の RSC client が stack trace 再構築用に試す `eval()` が警告になります。開発時の stack trace 再構築は制限されますが、React は本番ではこの `eval()` を使用しません。
 
@@ -36,7 +40,7 @@ API のベースは `/api/v1` です。
 - `GET|POST|PATCH|DELETE /api/v1/admin/{year}/{site}/tags`
 - `GET /api/v1/{year}/{site}/assets/{id}`、`POST /api/v1/admin/{year}/{site}/assets`
 
-公開 API の OpenAPI 定義は `/api/v1/openapi.json`、Swagger UI は `/api/v1/docs` です。管理 API の定義は `/api/v1/admin/openapi.json`、Swagger UI は `/api/v1/admin/docs` です。管理用ドキュメントを含む `/api/v1/admin/**` は、Cloudflare Access が付与する `CF-Access-Jwt-Assertion` の署名・issuer・audience・有効期限をアプリケーションでも検証します。`apps/web/src/api/client.ts` の `createApiClient` が Hono の `ApiType` に基づく typed client を提供します。
+公開 API の OpenAPI 定義は `/api/v1/openapi.json`、Swagger UI は `/api/v1/docs` です。管理 API の定義は `/api/v1/admin/openapi.json`、Swagger UI は `/api/v1/admin/docs` です。管理用ドキュメントを含む `/api/v1/admin/**` は、Cloudflare Access が付与する `CF-Access-Jwt-Assertion` の署名・issuer・audience・有効期限をアプリケーションでも検証します。`@repo/api/client` の `createApiClient` が Hono の `ApiType` に基づく typed client を提供し、HTTP 契約は `@repo/api/contracts` から利用できます。`apps/web` の API catch-all が `createApiApp` を Worker の同じ URL に接続します。
 
 公開ニュース一覧の GET は `tag`、`cursor`、`limit`、`lang` を URL query parameters で受け付けます。QUERY は同じ条件を `application/json` の request body（例: `{ "tag": "important", "limit": 10, "lang": "en" }`）で受け付けます。両方の入力は同じ検索処理へ正規化されます。個別ニュース取得（`GET /{slug}`）でも `?lang=` による言語指定に対応し、未指定時はスコープごとの `defaultLanguage` を返します。言語タグは BCP 47 を受け付け、`Intl.getCanonicalLocales` 相当で正規化します。指定言語の翻訳がない場合は暗黙に別言語へフォールバックせず、一覧では除外、詳細では404を返します。各スコープの `availableLanguages` は1件以上にし、`defaultLanguage` はその配列に含める必要があります。既存翻訳がある言語は、翻訳を移行・削除するまでスコープ設定から削除できません。
 

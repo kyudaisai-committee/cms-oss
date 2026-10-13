@@ -1,8 +1,13 @@
 import { env } from "cloudflare:workers";
 
-import { apiApp } from "#web/api/app";
+import { cmsSettings } from "#web/cms-settings";
+import { createApiApp } from "@repo/api/server";
 
 const apiBasePath = "/api/v1";
+const apiApp = createApiApp({
+	apiName: cmsSettings.name,
+	allowLocalFallback: import.meta.env.DEV,
+});
 
 async function forward(request: Request): Promise<Response> {
 	const url = new URL(request.url);

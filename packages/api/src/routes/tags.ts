@@ -1,9 +1,8 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 
-import { withPublicNewsCacheInvalidation } from "#web/api/cache.server";
+import { withPublicNewsCacheInvalidation } from "#api/cache.server";
+import { apiEnvelopeSchema, apiErrorEnvelopeSchema } from "#api/contracts";
 import {
-	apiEnvelopeSchema,
-	apiErrorEnvelopeSchema,
 	createTagInputSchema,
 	scopeRefSchema,
 	tagDtoSchema,

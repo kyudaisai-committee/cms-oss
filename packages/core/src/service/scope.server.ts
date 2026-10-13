@@ -1,11 +1,11 @@
 import "server-only";
 
 import type { InferSelectModel } from "drizzle-orm";
-import { HTTPException } from "hono/http-exception";
 
 import type { Database } from "#core/db.server";
 import { scopes } from "#core/db/schema";
 import { toScopeDto } from "#core/dto";
+import { CmsError } from "#core/errors";
 import { canonicalizeStoredLanguage, normalizeScope, normalizeScopeLanguages } from "#core/input";
 import { CmsRepository, isUniqueConstraintError } from "#core/repository.server";
 import type { CmsActor, ScopeDto, ScopeRef } from "#core/types";
@@ -81,7 +81,7 @@ export class ScopeService {
 		const repository = new CmsRepository(database);
 		const scopeRef = normalizeScope(ref);
 		const existing = await repository.findScope(scopeRef);
-		if (!existing) throw new HTTPException(404, { message: "Scope was not found." });
+		if (!existing) throw new CmsError("not_found", "Scope was not found.");
 		const languages = normalizeScopeLanguages(
 			values.availableLanguages ?? existing.availableLanguages,
 			values.defaultLanguage ?? existing.defaultLanguage,
@@ -94,9 +94,10 @@ export class ScopeService {
 		);
 		for (const lang of removed) {
 			if ((await repository.countTranslationsByLanguage(existing.id, lang)) > 0) {
-				throw new HTTPException(409, {
-					message: `Language ${lang} cannot be removed while translations exist.`,
-				});
+				throw new CmsError(
+					"conflict",
+					`Language ${lang} cannot be removed while translations exist.`,
+				);
 			}
 		}
 		const now = new Date();

@@ -2,8 +2,8 @@ import "server-only";
 
 import { env } from "cloudflare:workers";
 
-import { localActor } from "#web/api/access.server";
-import { getDb } from "#web/lib/db.server";
+import { localActor } from "@repo/api/access.server";
+import { getDb } from "@repo/api/db.server";
 import { CmsService } from "@repo/core/service.server";
 import type {
 	AdminNewsDto,

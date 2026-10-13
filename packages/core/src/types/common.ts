@@ -1,4 +1,4 @@
-import { z } from "@hono/zod-openapi";
+import { z } from "zod";
 
 export const newsContentTypeSchema = z.enum(["markdown", "link"]);
 export const newsMarkdownContentSchema = z.string().trim().min(1).max(1_000_000);

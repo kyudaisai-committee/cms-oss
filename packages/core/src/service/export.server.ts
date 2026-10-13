@@ -1,10 +1,10 @@
 import "server-only";
 
 import type { InferSelectModel } from "drizzle-orm";
-import { HTTPException } from "hono/http-exception";
 
 import { scopes } from "#core/db/schema";
 import { toPublishedNewsDto, toScopeDto, toTagDto } from "#core/dto";
+import { CmsError } from "#core/errors";
 import { CmsRepository } from "#core/repository.server";
 import {
 	dataExportSchema,
@@ -25,7 +25,7 @@ export class DataExportService {
 
 	async exportScope(scopeId: string): Promise<DataExport> {
 		const scope = await this.repository.findScopeById(scopeId);
-		if (!scope) throw new HTTPException(404, { message: "Scope was not found." });
+		if (!scope) throw new CmsError("not_found", "Scope was not found.");
 		return this.createExport([scope], scopeId);
 	}
 

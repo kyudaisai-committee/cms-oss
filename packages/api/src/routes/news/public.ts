@@ -1,12 +1,14 @@
 import { createRoute, OpenAPIHono, z, type RouteHandler } from "@hono/zod-openapi";
 
-import { publicNewsCacheHeaders } from "#web/api/cache.server";
+import { publicNewsCacheHeaders } from "#api/cache.server";
 import {
-	newsQuerySchema,
-	newsSlugSchema,
-	type NewsQuery,
 	apiEnvelopeSchema,
 	apiErrorEnvelopeSchema,
+	newsQuerySchema,
+	type NewsQuery,
+} from "#api/contracts";
+import {
+	newsSlugSchema,
 	publishedNewsDtoSchema,
 	publishedNewsPageSchema,
 	scopeRefSchema,

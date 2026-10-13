@@ -1,5 +1,5 @@
-import { z } from "@hono/zod-openapi";
 import { expect } from "vitest";
+import { z } from "zod";
 
 import {
 	adminNewsDtoSchema,

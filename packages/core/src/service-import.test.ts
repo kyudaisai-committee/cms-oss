@@ -540,7 +540,7 @@ describe("data import planning and commit", () => {
 		sqlite.prepare("DELETE FROM news_tags WHERE news_id = ?").run(existing.id);
 		await expect(
 			service.importData({ ...request, expectedPreviewToken: preview.previewToken }),
-		).rejects.toMatchObject({ status: 409 });
+		).rejects.toMatchObject({ code: "conflict" });
 		expect(rowCount(sqlite, "news")).toBe(1);
 	});
 
@@ -719,7 +719,7 @@ describe("data import planning and commit", () => {
 				...invalidTitle,
 				expectedPreviewToken: invalidTitlePreview.previewToken,
 			}),
-		).rejects.toMatchObject({ status: 400 });
+		).rejects.toMatchObject({ code: "validation" });
 		expect(rowCount(sqlite, "news")).toBe(0);
 		expect(rowCount(sqlite, "tags")).toBe(0);
 		expect(rowCount(sqlite, "audit_logs", "action = ?", "data.import")).toBe(0);
@@ -738,7 +738,7 @@ describe("data import planning and commit", () => {
 
 		await expect(
 			service.importData({ ...request, expectedPreviewToken: preview.previewToken }),
-		).rejects.toMatchObject({ status: 409 });
+		).rejects.toMatchObject({ code: "conflict" });
 		expect(rowCount(sqlite, "news")).toBe(0);
 		const latest = await repository.findScope({ year: 2026, site: "festival" });
 		expect(latest?.availableLanguages).toEqual(["ja", "en", "fr"]);
@@ -799,7 +799,7 @@ describe("data import planning and commit", () => {
 
 		await expect(
 			service.importData({ ...request, expectedPreviewToken: preview.previewToken }),
-		).rejects.toMatchObject({ status: 409 });
+		).rejects.toMatchObject({ code: "conflict" });
 		expect(rowCount(sqlite, "news")).toBe(0);
 		expect(rowCount(sqlite, "tags")).toBe(0);
 		expect(rowCount(sqlite, "audit_logs", "action = ?", "data.import")).toBe(0);

@@ -1,8 +1,8 @@
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 
-import { localActor, verifyAccessJwt, type AccessJwtVerifier } from "#web/api/access.server";
-import { getDb } from "#web/lib/db.server";
+import { localActor, verifyAccessJwt, type AccessJwtVerifier } from "#api/access.server";
+import { getDb } from "#api/db.server";
 import { toScopeDto } from "@repo/core/dto";
 import { CmsRepository } from "@repo/core/repository.server";
 import { CmsService } from "@repo/core/service.server";
@@ -33,7 +33,7 @@ function isLoopbackHost(request: Request) {
 }
 
 function canUseLocalFallback(request: Request, options: AccessJwtMiddlewareOptions) {
-	return isLoopbackHost(request) && (options.allowLocalFallback ?? import.meta.env.DEV);
+	return isLoopbackHost(request) && (options.allowLocalFallback ?? false);
 }
 
 export function createAccessJwtMiddleware(
@@ -64,8 +64,6 @@ export function createAccessJwtMiddleware(
 		await next();
 	});
 }
-
-export const accessJwtMiddleware = createAccessJwtMiddleware();
 
 function scopeSegments(path: string) {
 	const segments = path.split("/").filter(Boolean);

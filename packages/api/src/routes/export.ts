@@ -1,6 +1,6 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 
-import { getDb } from "#web/lib/db.server";
+import { getDb } from "#api/db.server";
 import { CmsService } from "@repo/core/service.server";
 import { dataExportSchema, scopeRefSchema } from "@repo/core/types";
 
