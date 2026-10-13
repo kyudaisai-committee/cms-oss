@@ -35,9 +35,13 @@ export async function ensureStarterFiles(paths: ProjectPaths): Promise<void> {
 		await writeFileAtomically(
 			paths.drizzleConfigPath,
 			[
+				'import { createRequire } from "node:module";',
+				"",
+				"const require = createRequire(import.meta.url);",
+				"",
 				"export default {",
 				'\tdialect: "sqlite",',
-				'\tschema: "./node_modules/@repo/cli/dist/db/schema.js",',
+				'\tschema: require.resolve("@repo/cli/db/schema"),',
 				'\tout: "./drizzle",',
 				"};",
 				"",
