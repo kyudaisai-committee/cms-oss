@@ -193,6 +193,9 @@ importers:
       '@repo/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@repo/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       jiti:
         specifier: ^2.7.0
         version: 2.7.0

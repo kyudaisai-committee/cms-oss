@@ -25,6 +25,7 @@
 	"dependencies": {
 		"@oclif/core": "^5.1.7",
 		"@repo/config": "workspace:*",
+		"@repo/core": "workspace:*",
 		"jiti": "^2.7.0"
 	},
 	"devDependencies": {
