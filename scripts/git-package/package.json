@@ -22,10 +22,6 @@
 		"@lexical/rich-text": "^0.52.0",
 		"@lexical/selection": "^0.52.0",
 		"@oclif/core": "^5.1.7",
-		"@repo/api": "0.0.0",
-		"@repo/config": "0.1.0",
-		"@repo/core": "0.0.0",
-		"@repo/editor": "0.0.0",
 		"@rolldown/plugin-babel": "^0.2.4",
 		"@tailwindcss/vite": "4.3.3",
 		"@tanstack/react-form": "^1.33.5",
@@ -55,6 +51,12 @@
 		"waku": "1.0.0-rc.3",
 		"wrangler": "^4.149.0",
 		"zod": "^4.6.5"
+	},
+	"devDependencies": {
+		"@repo/api": "file:../../packages/api",
+		"@repo/config": "file:../../packages/config",
+		"@repo/core": "file:../../packages/core",
+		"@repo/editor": "file:../../packages/editor"
 	},
 	"bundleDependencies": [
 		"@repo/api",
