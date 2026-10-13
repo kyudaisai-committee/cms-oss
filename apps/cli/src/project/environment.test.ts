@@ -1,6 +1,6 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -45,6 +45,9 @@ describe("createProjectEnvironment", () => {
 			expect(environment.ACCESS_AUDIENCE).toBeUndefined();
 			expect(environment.CMS_ENVIRONMENT_NAME).toBe("production");
 			expect(environment.CMS_WRANGLER_STATE_DIR).toBe(join(directory, ".wrangler", "state"));
+			expect(environment.PATH?.split(delimiter)[0]).toBe(
+				join(paths.packageRoot, "node_modules", ".bin"),
+			);
 		} finally {
 			for (const [name, value] of previous) {
 				if (value === undefined) delete process.env[name];

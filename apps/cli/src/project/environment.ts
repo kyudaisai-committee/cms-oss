@@ -1,3 +1,5 @@
+import { delimiter, join } from "node:path";
+
 import type { ProjectPaths } from "#cli/project/paths";
 import { projectDisplaySettings, type CmsConfig } from "@repo/config";
 
@@ -7,6 +9,10 @@ export function createProjectEnvironment(
 	environmentName?: string,
 ): NodeJS.ProcessEnv {
 	const environment: NodeJS.ProcessEnv = { ...process.env };
+	const productBinDirectory = join(paths.packageRoot, "node_modules", ".bin");
+	environment.PATH = environment.PATH
+		? `${productBinDirectory}${delimiter}${environment.PATH}`
+		: productBinDirectory;
 	const displaySettings = projectDisplaySettings(config);
 	const exposedSettings: Record<string, string | undefined> = {
 		VITE_CMS_NAME: displaySettings.name,

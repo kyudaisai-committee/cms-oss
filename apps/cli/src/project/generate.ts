@@ -35,13 +35,11 @@ export async function ensureStarterFiles(paths: ProjectPaths): Promise<void> {
 		await writeFileAtomically(
 			paths.drizzleConfigPath,
 			[
-				'import { defineConfig } from "drizzle-kit";',
-				"",
-				"export default defineConfig({",
+				"export default {",
 				'\tdialect: "sqlite",',
 				'\tschema: "./node_modules/@repo/cli/dist/db/schema.js",',
 				'\tout: "./drizzle",',
-				"});",
+				"};",
 				"",
 			].join("\n"),
 		);
