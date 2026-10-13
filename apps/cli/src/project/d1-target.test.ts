@@ -30,12 +30,15 @@ describe("assertConsumerD1Target", () => {
 							binding: "DB",
 							database_name: expected.databaseName,
 							database_id: expected.databaseId,
+							migrations_dir: "./drizzle",
 						},
 					],
 				}),
 			);
 
-			expect(() => assertConsumerD1Target(configPath, undefined, expected)).not.toThrow();
+			expect(() =>
+				assertConsumerD1Target(configPath, undefined, expected, join(directory, "drizzle")),
+			).not.toThrow();
 		} finally {
 			await rm(directory, { recursive: true, force: true });
 		}
@@ -66,6 +69,7 @@ describe("assertConsumerD1Target", () => {
 									binding: "DB",
 									database_name: expected.databaseName,
 									database_id: expected.databaseId,
+									migrations_dir: "./drizzle",
 								},
 							],
 						},
@@ -73,16 +77,26 @@ describe("assertConsumerD1Target", () => {
 				}),
 			);
 
-			expect(() => assertConsumerD1Target(configPath, "staging", expected)).not.toThrow();
-			expect(() => assertConsumerD1Target(configPath, undefined, expected)).toThrow(
-				"targets another-database (22222222-2222-4222-8222-222222222222)",
-			);
 			expect(() =>
-				assertConsumerD1Target(configPath, "staging", {
-					...expected,
-					databaseId: "33333333-3333-4333-8333-333333333333",
-				}),
+				assertConsumerD1Target(configPath, "staging", expected, join(directory, "drizzle")),
+			).not.toThrow();
+			expect(() =>
+				assertConsumerD1Target(configPath, undefined, expected, join(directory, "drizzle")),
+			).toThrow("targets another-database (22222222-2222-4222-8222-222222222222)");
+			expect(() =>
+				assertConsumerD1Target(
+					configPath,
+					"staging",
+					{
+						...expected,
+						databaseId: "33333333-3333-4333-8333-333333333333",
+					},
+					join(directory, "drizzle"),
+				),
 			).toThrow("cms.config.ts expects cms-test (33333333-3333-4333-8333-333333333333)");
+			expect(() =>
+				assertConsumerD1Target(configPath, "staging", expected, join(directory, "migrations")),
+			).toThrow("reads migrations from");
 		} finally {
 			await rm(directory, { recursive: true, force: true });
 		}
@@ -102,11 +116,14 @@ describe("assertConsumerD1Target", () => {
 					'binding = "DB"',
 					`database_name = "${expected.databaseName}"`,
 					`database_id = "${expected.databaseId}"`,
+					'migrations_dir = "./drizzle"',
 					"",
 				].join("\n"),
 			);
 
-			expect(() => assertConsumerD1Target(configPath, undefined, expected)).not.toThrow();
+			expect(() =>
+				assertConsumerD1Target(configPath, undefined, expected, join(directory, "drizzle")),
+			).not.toThrow();
 		} finally {
 			await rm(directory, { recursive: true, force: true });
 		}
