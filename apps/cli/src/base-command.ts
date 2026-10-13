@@ -8,8 +8,9 @@ import { resolveProjectPaths, type ProjectPaths } from "#cli/project/paths";
 export const commonFlags = {
 	cwd: Flags.string({ description: "Consumer project directory" }),
 	config: Flags.string({ description: "Path to cms.config.ts, relative to --cwd" }),
-	wranglerConfig: Flags.string({
-		description: "Path to the consumer's existing Wrangler configuration, relative to --cwd",
+	"wrangler-config": Flags.string({
+		description:
+			"Path to the consumer's existing Wrangler configuration, relative to the directory containing cms.config.ts",
 	}),
 	env: Flags.string({ description: "Named Cloudflare environment" }),
 };
@@ -17,7 +18,7 @@ export const commonFlags = {
 export interface ProjectFlags {
 	cwd?: string | undefined;
 	config?: string | undefined;
-	wranglerConfig?: string | undefined;
+	"wrangler-config"?: string | undefined;
 	env?: string | undefined;
 }
 
