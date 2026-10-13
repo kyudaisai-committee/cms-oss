@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { access, mkdir, open, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { access, mkdir, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 
 import {
@@ -57,32 +57,6 @@ export async function generateCmsProject(paths: ProjectPaths): Promise<void> {
 		await synchronizeGeneratedProject(temporaryDirectory, paths.cmsDirectory);
 	} finally {
 		await rm(temporaryDirectory, { recursive: true, force: true });
-	}
-}
-
-export async function withProjectLock<T>(
-	projectRoot: string,
-	operation: () => Promise<T>,
-): Promise<T> {
-	const lockPath = join(projectRoot, ".cms.lock");
-	let lockHandle;
-	try {
-		lockHandle = await open(lockPath, "wx");
-	} catch (error) {
-		if (isAlreadyExists(error)) {
-			throw new Error(
-				`Another CMS command is using ${join(projectRoot, ".cms")}. Wait for it to finish before starting another command.`,
-			);
-		}
-		throw error;
-	}
-
-	try {
-		await lockHandle.writeFile(`${process.pid}\n`);
-		return await operation();
-	} finally {
-		await lockHandle.close();
-		await rm(lockPath, { force: true });
 	}
 }
 
@@ -208,12 +182,4 @@ async function writeFileAtomically(path: string, content: string): Promise<void>
 	const temporaryPath = `${path}.tmp-${randomUUID()}`;
 	await writeFile(temporaryPath, content, { flag: "wx" });
 	await rename(temporaryPath, path);
-}
-
-function isAlreadyExists(error: unknown): boolean {
-	return hasErrorCode(error, "EEXIST");
-}
-
-function hasErrorCode(error: unknown, code: string): boolean {
-	return typeof error === "object" && error !== null && "code" in error && error.code === code;
 }

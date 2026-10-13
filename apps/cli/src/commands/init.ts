@@ -2,7 +2,8 @@ import { mkdir } from "node:fs/promises";
 
 import { commonFlags, BaseCommand } from "#cli/base-command";
 import { loadCmsConfig } from "#cli/project/config";
-import { ensureStarterFiles, generateCmsProject, withProjectLock } from "#cli/project/generate";
+import { ensureStarterFiles, generateCmsProject } from "#cli/project/generate";
+import { withProjectLock } from "#cli/project/lock";
 import { resolveProjectPaths } from "#cli/project/paths";
 
 export default class Init extends BaseCommand {

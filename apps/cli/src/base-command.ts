@@ -1,7 +1,8 @@
 import { Command, Flags } from "@oclif/core";
 
 import { loadCmsConfig } from "#cli/project/config";
-import { generateCmsProject, withProjectLock } from "#cli/project/generate";
+import { generateCmsProject } from "#cli/project/generate";
+import { withProjectLock } from "#cli/project/lock";
 import { resolveProjectPaths, type ProjectPaths } from "#cli/project/paths";
 
 export const commonFlags = {
