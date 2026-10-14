@@ -16,6 +16,12 @@ const displaySettingsSchema = z
 	})
 	.strict();
 
+const devServerConfigSchema = z
+	.object({
+		allowedHosts: z.array(nonEmptyText).default([]),
+	})
+	.strict();
+
 const cloudflareConfigSchema = z
 	.object({
 		workerName: z
@@ -51,6 +57,7 @@ const environmentSchema = z
 
 const cmsConfigSchema = displaySettingsSchema
 	.extend({
+		devServer: devServerConfigSchema.default(() => devServerConfigSchema.parse({})),
 		cloudflare: cloudflareConfigSchema.default(() => cloudflareConfigSchema.parse({})),
 		environments: z.record(z.string().trim().min(1), environmentSchema).default({}),
 	})
@@ -59,6 +66,7 @@ const cmsConfigSchema = displaySettingsSchema
 export type CmsConfigInput = z.input<typeof cmsConfigSchema>;
 export type CmsConfig = z.output<typeof cmsConfigSchema>;
 export type CmsCloudflareConfig = CmsConfig["cloudflare"];
+export type CmsDevServerConfig = CmsConfig["devServer"];
 export type CmsDisplaySettings = Pick<
 	CmsConfig,
 	"name" | "description" | "iconUrl" | "themeStorageKey" | "newsFormStoragePrefix"

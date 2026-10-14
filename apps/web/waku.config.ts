@@ -6,7 +6,10 @@ import { defineConfig } from "waku/config";
 
 import type { CmsCloudflareConfig } from "@repo/config";
 
-export function createCmsWakuConfig(cloudflareConfig?: CmsCloudflareConfig) {
+export function createCmsWakuConfig(
+	cloudflareConfig?: CmsCloudflareConfig,
+	allowedHosts: string[] = [],
+) {
 	const workerConfig = cloudflareConfig
 		? (resolvedConfig: WorkerConfig) => {
 				Object.assign(resolvedConfig, resolveWorkerConfig(cloudflareConfig));
@@ -22,7 +25,7 @@ export function createCmsWakuConfig(cloudflareConfig?: CmsCloudflareConfig) {
 				watch: {
 					ignored: /[\\/]\.wrangler[\\/]/,
 				},
-				allowedHosts: ["cms"],
+				allowedHosts,
 			},
 			plugins: [
 				cloudflare({

@@ -106,7 +106,7 @@ function renderWakuConfig(paths: ProjectPaths): string {
 		"const config = validateConfig(consumerConfig);",
 		"const environment = resolveEnvironment(config, process.env.CMS_ENVIRONMENT_NAME);",
 		"",
-		"export default createCmsWakuConfig(environment.cloudflare);",
+		"export default createCmsWakuConfig(environment.cloudflare, config.devServer.allowedHosts);",
 		"",
 	].join("\n");
 }

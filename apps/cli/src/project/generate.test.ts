@@ -44,6 +44,7 @@ describe("generated consumer project", () => {
 			const productRequire = createRequire(join(paths.packageRoot, "package.json"));
 			expect(generatedConfig).toContain('from "../cms.config.ts"');
 			expect(generatedConfig).toContain('from "@repo/cli/web/waku.config.ts"');
+			expect(generatedConfig).toContain("config.devServer.allowedHosts");
 			expect(generatedRequire.resolve("@repo/core/db/schema")).toBe(
 				productRequire.resolve("@repo/core/db/schema"),
 			);

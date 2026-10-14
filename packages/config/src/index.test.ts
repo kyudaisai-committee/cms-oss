@@ -12,6 +12,7 @@ import {
 
 describe("CMS configuration contract", () => {
 	it("provides the display defaults and fixed Worker bindings", () => {
+		expect(CMS_CONFIG_DEFAULTS.devServer).toEqual({ allowedHosts: [] });
 		expect(projectDisplaySettings(CMS_CONFIG_DEFAULTS)).toEqual({
 			name: "お知らせ CMS",
 			description: "お知らせを管理するCMS",
@@ -24,6 +25,13 @@ describe("CMS configuration contract", () => {
 			assets: "ASSETS",
 			staticAssets: "STATIC_ASSETS",
 		});
+	});
+
+	it("validates consumer-owned Waku development hosts", () => {
+		expect(defineConfig({ devServer: { allowedHosts: ["cms.example.test"] } }).devServer).toEqual({
+			allowedHosts: ["cms.example.test"],
+		});
+		expect(() => defineConfig({ devServer: { allowedHosts: [" "] } })).toThrow();
 	});
 
 	it("trims display settings and keeps only the explicit client projection", () => {
