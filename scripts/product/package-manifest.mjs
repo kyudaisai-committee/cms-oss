@@ -106,7 +106,7 @@ export async function writeProductManifest({
 			"./db/schema": { types: "./dist/db/schema.d.ts", default: "./dist/db/schema.js" },
 			"./web/*": "./dist/web/*",
 		},
-		engines: { node: ">=22" },
+		engines: { node: "^22.15.0 || ^24.0.0 || ^26.0.0" },
 		dependencies,
 		bundleDependencies: privatePackages.map((name) => `@repo/${name}`),
 	};
