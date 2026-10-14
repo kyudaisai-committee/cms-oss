@@ -74,4 +74,47 @@ describe("CMS migration plan", () => {
 
 		expect(formatCmsMigrationPlan(plan)).toBe("No database changes from CMS 0.1.0 to 0.1.0.");
 	});
+
+	it("rejects a schema identity change without a recorded database change", () => {
+		const releases: CmsSchemaRelease[] = [
+			{
+				version: "0.1.0",
+				schemaId: "schema-v1",
+				schemaExport: "@repo/cli/db/schema",
+				changes: [],
+			},
+			{
+				version: "0.2.0",
+				schemaId: "schema-v2",
+				schemaExport: "@repo/cli/db/schema",
+				changes: [],
+			},
+		];
+
+		expect(() => createCmsReleaseCatalog("0.2.0", releases)).toThrow(
+			"changes schema identity without recording a database change",
+		);
+	});
+
+	it("allows a version-only release when the schema identity is unchanged", () => {
+		const releases: CmsSchemaRelease[] = [
+			{
+				version: "0.1.0",
+				schemaId: "schema-v1",
+				schemaExport: "@repo/cli/db/schema",
+				changes: [],
+			},
+			{
+				version: "0.2.0",
+				schemaId: "schema-v1",
+				schemaExport: "@repo/cli/db/schema",
+				changes: [],
+			},
+		];
+		const state = createEmptyCmsMigrationState();
+		state.baseline = { version: "0.1.0", schemaId: "schema-v1" };
+		const plan = createCmsMigrationPlan(state, createCmsReleaseCatalog("0.2.0", releases));
+
+		expect(plan).toEqual({ kind: "no-changes", fromVersion: "0.1.0", toVersion: "0.2.0" });
+	});
 });

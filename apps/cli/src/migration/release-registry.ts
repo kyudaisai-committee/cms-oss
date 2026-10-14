@@ -33,6 +33,7 @@ export function createCmsReleaseCatalog(
 	if (!currentVersion) throw new Error(`The CMS package has an invalid version: ${packageVersion}`);
 
 	let previousVersion: number[] | undefined;
+	let previousRelease: CmsSchemaRelease | undefined;
 	for (const release of releases) {
 		const version = parseStableVersion(release.version);
 		if (!version || (previousVersion && compareVersionParts(version, previousVersion) <= 0)) {
@@ -41,7 +42,17 @@ export function createCmsReleaseCatalog(
 		if (!release.schemaId || !release.schemaExport.startsWith("@repo/cli/")) {
 			throw new Error(`The CMS schema release ${release.version} has an invalid schema reference.`);
 		}
+		if (
+			previousRelease &&
+			previousRelease.schemaId !== release.schemaId &&
+			release.changes.length === 0
+		) {
+			throw new Error(
+				`CMS schema release ${release.version} changes schema identity without recording a database change.`,
+			);
+		}
 		previousVersion = version;
+		previousRelease = release;
 	}
 
 	const currentIndex = releases.findIndex((release) => release.version === packageVersion);
