@@ -31,6 +31,6 @@ export function createDeferredSignal(): DeferredSignal {
 
 export async function waitForSignal(signal: Promise<unknown>, message: string): Promise<unknown> {
 	const timeoutError = Promise.withResolvers<never>();
-	using timeout = setTimeout(() => timeoutError.reject(new Error(message)), 15_000);
+	using _timeout = setTimeout(() => timeoutError.reject(new Error(message)), 15_000);
 	return await Promise.race([signal, timeoutError.promise]);
 }

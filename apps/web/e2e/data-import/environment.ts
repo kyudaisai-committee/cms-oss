@@ -128,7 +128,7 @@ export async function stopServer(
 	);
 	activeServer.processHandle.kill("SIGTERM");
 	const timeoutElapsed = Promise.withResolvers<void>();
-	using timeout = setTimeout(timeoutElapsed.resolve, 8_000);
+	using _timeout = setTimeout(timeoutElapsed.resolve, 8_000);
 	await Promise.race([exited, timeoutElapsed.promise]);
 	if (activeServer.processHandle.exitCode === null) activeServer.processHandle.kill("SIGKILL");
 }
