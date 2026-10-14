@@ -29,14 +29,8 @@ export function createDeferredSignal(): DeferredSignal {
 	return { promise, resolve: () => resolvePromise?.() };
 }
 
-export function waitForSignal(signal: Promise<unknown>, message: string): Promise<unknown> {
-	let timeout: ReturnType<typeof setTimeout> | undefined;
-	return Promise.race([
-		signal,
-		new Promise<never>((_, reject) => {
-			timeout = setTimeout(() => reject(new Error(message)), 15_000);
-		}),
-	]).finally(() => {
-		if (timeout) clearTimeout(timeout);
-	});
+export async function waitForSignal(signal: Promise<unknown>, message: string): Promise<unknown> {
+	const timeoutError = Promise.withResolvers<never>();
+	using timeout = setTimeout(() => timeoutError.reject(new Error(message)), 15_000);
+	return await Promise.race([signal, timeoutError.promise]);
 }

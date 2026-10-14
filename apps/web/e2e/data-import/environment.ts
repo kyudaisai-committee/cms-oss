@@ -1,8 +1,9 @@
 import { spawn } from "node:child_process";
-import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, mkdtempDisposable, rm, writeFile } from "node:fs/promises";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 
 import { generateSQLiteDrizzleJson, generateSQLiteMigration } from "drizzle-kit/api";
 
@@ -18,7 +19,7 @@ interface ExecuteOptions {
 	env?: NodeJS.ProcessEnv;
 }
 
-export interface IsolatedEnvironment {
+export interface IsolatedEnvironment extends AsyncDisposable {
 	chromePath: string;
 	persistDirectory: string;
 	databaseDirectory: string;
@@ -47,21 +48,21 @@ export async function findChrome(): Promise<string> {
 	throw new Error("既存のChromeが見つかりません。ブラウザの自動ダウンロードは行いません。");
 }
 
-export function execute(
+export async function execute(
 	command: string,
 	args: string[],
 	options: ExecuteOptions = {},
 ): Promise<ExecuteResult> {
-	return new Promise((resolve, reject) => {
-		const child = spawn(command, args, {
-			cwd: options.cwd ?? webDirectory,
-			env: options.env ?? process.env,
-			stdio: ["ignore", "pipe", "pipe"],
-		});
-		let stdout = "";
-		let stderr = "";
-		child.stdout?.setEncoding("utf8").on("data", (chunk: string) => (stdout += chunk));
-		child.stderr?.setEncoding("utf8").on("data", (chunk: string) => (stderr += chunk));
+	using child = spawn(command, args, {
+		cwd: options.cwd ?? webDirectory,
+		env: options.env ?? process.env,
+		stdio: ["ignore", "pipe", "pipe"],
+	});
+	let stdout = "";
+	let stderr = "";
+	child.stdout?.setEncoding("utf8").on("data", (chunk: string) => (stdout += chunk));
+	child.stderr?.setEncoding("utf8").on("data", (chunk: string) => (stderr += chunk));
+	return await new Promise((resolve, reject) => {
 		child.on("error", reject);
 		child.on("close", (code) => {
 			if (code !== 0) reject(new Error(`${command} exited ${code}\n${stdout}\n${stderr}`));
@@ -91,16 +92,13 @@ function startServer(port: number, databaseDirectory: string) {
 }
 
 async function getAvailablePort(): Promise<number> {
-	const listener = net.createServer();
+	await using listener = net.createServer();
 	await new Promise<void>((resolve, reject) => {
 		listener.once("error", reject);
 		listener.listen(0, "127.0.0.1", resolve);
 	});
 	const address = listener.address();
 	if (!address || typeof address === "string") throw new Error("ポートを取得できませんでした。");
-	await new Promise<void>((resolve, reject) =>
-		listener.close((error) => (error ? reject(error) : resolve())),
-	);
 	return address.port;
 }
 
@@ -116,7 +114,7 @@ async function waitForServer(
 			const response = await fetch(`${baseUrl}/api/v1/scopes`);
 			if (response.ok) return;
 		} catch {}
-		await new Promise<void>((resolve) => setTimeout(resolve, 400));
+		await delay(400);
 	}
 	throw new Error(`Waku dev の起動がタイムアウトしました。\n${activeServer.getLogs()}`);
 }
@@ -129,59 +127,57 @@ export async function stopServer(
 		activeServer.processHandle.once("exit", () => resolve()),
 	);
 	activeServer.processHandle.kill("SIGTERM");
-	await Promise.race([exited, new Promise<void>((resolve) => setTimeout(resolve, 8_000))]);
+	const timeoutElapsed = Promise.withResolvers<void>();
+	using timeout = setTimeout(timeoutElapsed.resolve, 8_000);
+	await Promise.race([exited, timeoutElapsed.promise]);
 	if (activeServer.processHandle.exitCode === null) activeServer.processHandle.kill("SIGKILL");
 }
 
 export async function createIsolatedEnvironment(): Promise<IsolatedEnvironment> {
 	const chromePath = await findChrome();
-	const persistDirectory = await mkdtemp(path.join(os.tmpdir(), "cms-import-e2e-d1-"));
+	await using resources = new AsyncDisposableStack();
+	const persistence = await mkdtempDisposable(path.join(os.tmpdir(), "cms-import-e2e-d1-"));
+	resources.use(persistence);
+	const persistDirectory = persistence.path;
 	const databaseDirectory = path.join(persistDirectory, "d1");
 	const screenshotDirectory = await mkdtemp(path.join(os.tmpdir(), "cms-import-e2e-review-"));
-	let server: ReturnType<typeof startServer> | undefined;
+	const currentSchema = await generateSQLiteDrizzleJson(schema);
+	const emptySchema = await generateSQLiteDrizzleJson({});
+	const statements = await generateSQLiteMigration(emptySchema, currentSchema);
+	if (statements.length === 0) throw new Error("D1 schema generation produced no statements.");
+	const schemaFile = path.join(persistDirectory, "schema.sql");
 	try {
-		const currentSchema = await generateSQLiteDrizzleJson(schema);
-		const emptySchema = await generateSQLiteDrizzleJson({});
-		const statements = await generateSQLiteMigration(emptySchema, currentSchema);
-		if (statements.length === 0) throw new Error("D1 schema generation produced no statements.");
-		const schemaFile = path.join(persistDirectory, "schema.sql");
-		try {
-			await writeFile(schemaFile, `${statements.join("\n")}\n`, "utf8");
-			await execute(wranglerPath, [
-				"d1",
-				"execute",
-				"DB",
-				"--local",
-				"--persist-to",
-				databaseDirectory,
-				"--config",
-				"wrangler.toml",
-				"--file",
-				schemaFile,
-			]);
-		} finally {
-			await rm(schemaFile, { force: true });
-		}
-		const port = await getAvailablePort();
-		const baseUrl = `http://127.0.0.1:${port}`;
-		server = startServer(port, databaseDirectory);
-		await waitForServer(baseUrl, server);
-		return {
-			chromePath,
-			persistDirectory,
+		await writeFile(schemaFile, `${statements.join("\n")}\n`, "utf8");
+		await execute(wranglerPath, [
+			"d1",
+			"execute",
+			"DB",
+			"--local",
+			"--persist-to",
 			databaseDirectory,
-			screenshotDirectory,
-			baseUrl,
-			server,
-		};
-	} catch (error) {
-		await stopServer(server);
-		await rm(persistDirectory, { recursive: true, force: true });
-		throw error;
+			"--config",
+			"wrangler.toml",
+			"--file",
+			schemaFile,
+		]);
+	} finally {
+		await rm(schemaFile, { force: true });
 	}
-}
-
-export async function cleanupIsolatedEnvironment(environment: IsolatedEnvironment): Promise<void> {
-	await stopServer(environment.server);
-	await rm(environment.persistDirectory, { recursive: true, force: true });
+	const port = await getAvailablePort();
+	const baseUrl = `http://127.0.0.1:${port}`;
+	const server = startServer(port, databaseDirectory);
+	resources.defer(() => stopServer(server));
+	await waitForServer(baseUrl, server);
+	const ownedResources = resources.move();
+	return {
+		chromePath,
+		persistDirectory,
+		databaseDirectory,
+		screenshotDirectory,
+		baseUrl,
+		server,
+		async [Symbol.asyncDispose]() {
+			await ownedResources.disposeAsync();
+		},
+	};
 }
