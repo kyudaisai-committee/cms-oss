@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtempDisposable, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -19,20 +19,16 @@ import {
 
 describe("CMS migration state", () => {
 	it("keeps missing baseline and prepared records unknown until the consumer records them", async () => {
-		const directory = await mkdtemp(join(tmpdir(), "cms-cli-migration-state-"));
-		const statePath = join(directory, "drizzle", "cms-state.json");
+		await using directory = await mkdtempDisposable(join(tmpdir(), "cms-cli-migration-state-"));
+		const statePath = join(directory.path, "drizzle", "cms-state.json");
 
-		try {
-			expect(await readCmsMigrationState(statePath)).toEqual(createEmptyCmsMigrationState());
-			const state = createEmptyCmsMigrationState();
-			state.baseline = { version: "0.1.0", schemaId: "core-schema-v1" };
-			await writeCmsMigrationState(statePath, state);
+		expect(await readCmsMigrationState(statePath)).toEqual(createEmptyCmsMigrationState());
+		const state = createEmptyCmsMigrationState();
+		state.baseline = { version: "0.1.0", schemaId: "core-schema-v1" };
+		await writeCmsMigrationState(statePath, state);
 
-			expect(JSON.parse(await readFile(statePath, "utf8"))).toEqual(state);
-			expect(await readCmsMigrationState(statePath)).toEqual(state);
-		} finally {
-			await rm(directory, { recursive: true, force: true });
-		}
+		expect(JSON.parse(await readFile(statePath, "utf8"))).toEqual(state);
+		expect(await readCmsMigrationState(statePath)).toEqual(state);
 	});
 
 	it("resolves an explicit CMS version to its registered schema", () => {
@@ -87,15 +83,13 @@ describe("CMS migration state", () => {
 	});
 
 	it("rejects malformed persisted state instead of replacing it with the current schema", async () => {
-		const directory = await mkdtemp(join(tmpdir(), "cms-cli-migration-state-invalid-"));
-		const statePath = join(directory, "cms-state.json");
+		await using directory = await mkdtempDisposable(
+			join(tmpdir(), "cms-cli-migration-state-invalid-"),
+		);
+		const statePath = join(directory.path, "cms-state.json");
 
-		try {
-			await writeFile(statePath, '{"formatVersion":2,"baseline":null,"preparedThrough":null}\n');
+		await writeFile(statePath, '{"formatVersion":2,"baseline":null,"preparedThrough":null}\n');
 
-			await expect(readCmsMigrationState(statePath)).rejects.toThrow("unsupported format");
-		} finally {
-			await rm(directory, { recursive: true, force: true });
-		}
+		await expect(readCmsMigrationState(statePath)).rejects.toThrow("unsupported format");
 	});
 });

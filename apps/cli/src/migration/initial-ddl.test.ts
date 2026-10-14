@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdtemp, mkdtempDisposable, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtempDisposable, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -14,58 +14,43 @@ import {
 
 describe("initial Drizzle migration generation", () => {
 	it("uses the output directory from the consumer-owned Drizzle config", async () => {
-		const directory = await mkdtemp(join(tmpdir(), "cms-cli-drizzle-out-"));
-		const configPath = join(directory, "drizzle.config.ts");
+		await using directory = await mkdtempDisposable(join(tmpdir(), "cms-cli-drizzle-out-"));
+		const configPath = join(directory.path, "drizzle.config.ts");
 
-		try {
-			await writeFile(configPath, 'export default { out: "./migrations/current" };\n');
-			expect(await resolveDrizzleOutputDirectory(configPath)).toBe(
-				join(directory, "migrations", "current"),
-			);
-		} finally {
-			await rm(directory, { recursive: true, force: true });
-		}
+		await writeFile(configPath, 'export default { out: "./migrations/current" };\n');
+		expect(await resolveDrizzleOutputDirectory(configPath)).toBe(
+			join(directory.path, "migrations", "current"),
+		);
 	});
 
 	it("refuses to initialize when consumer migration files or state already exist", async () => {
-		const directory = await mkdtemp(join(tmpdir(), "cms-cli-drizzle-existing-"));
-		const outputDirectory = join(directory, "drizzle");
+		await using directory = await mkdtempDisposable(join(tmpdir(), "cms-cli-drizzle-existing-"));
+		const outputDirectory = join(directory.path, "drizzle");
 		const statePath = join(outputDirectory, "cms-state.json");
 		const migrationPath = join(outputDirectory, "0000_existing.sql");
 
-		try {
-			await mkdir(outputDirectory, { recursive: true });
-			await writeFile(migrationPath, "CREATE TABLE existing (id INTEGER);\n");
-			await expect(
-				assertInitialMigrationDirectoryIsEmpty(outputDirectory, statePath),
-			).rejects.toThrow("Refusing to initialize CMS migrations");
-			expect(await readFile(migrationPath, "utf8")).toContain("CREATE TABLE existing");
-		} finally {
-			await rm(directory, { recursive: true, force: true });
-		}
+		await mkdir(outputDirectory, { recursive: true });
+		await writeFile(migrationPath, "CREATE TABLE existing (id INTEGER);\n");
+		await expect(
+			assertInitialMigrationDirectoryIsEmpty(outputDirectory, statePath),
+		).rejects.toThrow("Refusing to initialize CMS migrations");
+		expect(await readFile(migrationPath, "utf8")).toContain("CREATE TABLE existing");
 	});
 
 	it("requires Drizzle Kit to produce SQL, a snapshot, and a journal", async () => {
-		const directory = await mkdtemp(join(tmpdir(), "cms-cli-drizzle-artifacts-"));
-		const outputDirectory = join(directory, "drizzle");
+		await using directory = await mkdtempDisposable(join(tmpdir(), "cms-cli-drizzle-artifacts-"));
+		const outputDirectory = join(directory.path, "drizzle");
 
-		try {
-			await mkdir(join(outputDirectory, "meta"), { recursive: true });
-			await writeFile(
-				join(outputDirectory, "0000_initial.sql"),
-				"CREATE TABLE item (id INTEGER);\n",
-			);
-			await writeFile(join(outputDirectory, "meta", "0000_snapshot.json"), "{}\n");
-			await writeFile(join(outputDirectory, "meta", "_journal.json"), "{}\n");
+		await mkdir(join(outputDirectory, "meta"), { recursive: true });
+		await writeFile(join(outputDirectory, "0000_initial.sql"), "CREATE TABLE item (id INTEGER);\n");
+		await writeFile(join(outputDirectory, "meta", "0000_snapshot.json"), "{}\n");
+		await writeFile(join(outputDirectory, "meta", "_journal.json"), "{}\n");
 
-			await expect(assertInitialMigrationArtifactsExist(outputDirectory)).resolves.toBeUndefined();
-			await rm(join(outputDirectory, "0000_initial.sql"));
-			await expect(assertInitialMigrationArtifactsExist(outputDirectory)).rejects.toThrow(
-				"expected SQL, snapshot, and journal",
-			);
-		} finally {
-			await rm(directory, { recursive: true, force: true });
-		}
+		await expect(assertInitialMigrationArtifactsExist(outputDirectory)).resolves.toBeUndefined();
+		await rm(join(outputDirectory, "0000_initial.sql"));
+		await expect(assertInitialMigrationArtifactsExist(outputDirectory)).rejects.toThrow(
+			"expected SQL, snapshot, and journal",
+		);
 	});
 
 	it("recognizes the generated cms-initial artifact and excludes only its state markers", async () => {

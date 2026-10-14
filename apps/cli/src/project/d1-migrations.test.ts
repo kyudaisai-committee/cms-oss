@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtempDisposable, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -121,63 +121,59 @@ describe("Wrangler D1 migration history response", () => {
 
 describe("resolveD1MigrationContext", () => {
 	it("uses the same Wrangler env for the selected D1 and consumer Drizzle output", async () => {
-		const directory = await mkdtemp(join(tmpdir(), "cms-cli-d1-context-"));
-		const paths = resolveProjectPaths(directory);
-		const wranglerConfigPath = join(directory, "wrangler.jsonc");
+		await using directory = await mkdtempDisposable(join(tmpdir(), "cms-cli-d1-context-"));
+		const paths = resolveProjectPaths(directory.path);
+		const wranglerConfigPath = join(directory.path, "wrangler.jsonc");
 
-		try {
-			await writeFile(
-				join(directory, "drizzle.config.ts"),
-				'export default { out: "./drizzle" };\n',
-			);
-			await writeFile(
-				wranglerConfigPath,
-				JSON.stringify({
-					name: "consumer",
-					compatibility_date: "2026-10-14",
-					env: {
-						staging: {
-							name: "consumer-staging",
-							d1_databases: [
-								{
-									binding: "DB",
-									database_name: "cms-staging",
-									database_id: "11111111-1111-4111-8111-111111111111",
-									migrations_dir: "./drizzle",
-								},
-							],
-						},
+		await writeFile(
+			join(directory.path, "drizzle.config.ts"),
+			'export default { out: "./drizzle" };\n',
+		);
+		await writeFile(
+			wranglerConfigPath,
+			JSON.stringify({
+				name: "consumer",
+				compatibility_date: "2026-10-14",
+				env: {
+					staging: {
+						name: "consumer-staging",
+						d1_databases: [
+							{
+								binding: "DB",
+								database_name: "cms-staging",
+								database_id: "11111111-1111-4111-8111-111111111111",
+								migrations_dir: "./drizzle",
+							},
+						],
 					},
-				}),
-			);
-			const cmsConfig = validateConfig({
-				cloudflare: { configPath: "./wrangler.jsonc" },
-			});
-			const context = await resolveD1MigrationContext(
-				paths,
-				{
-					config: cmsConfig,
-					configDirectory: directory,
-					cloudflare: cmsConfig.cloudflare,
-					environmentName: "staging",
-					wranglerConfigPath: undefined,
 				},
-				undefined,
-				"local",
-			);
-
-			expect(context).toEqual({
-				wranglerConfigPath,
-				drizzleOutputDirectory: join(directory, "drizzle"),
-				databaseName: "cms-staging",
-				databaseId: "11111111-1111-4111-8111-111111111111",
-				migrationsTableName: "d1_migrations",
+			}),
+		);
+		const cmsConfig = validateConfig({
+			cloudflare: { configPath: "./wrangler.jsonc" },
+		});
+		const context = await resolveD1MigrationContext(
+			paths,
+			{
+				config: cmsConfig,
+				configDirectory: directory.path,
+				cloudflare: cmsConfig.cloudflare,
 				environmentName: "staging",
-				location: "local",
-				persistTo: join(directory, ".wrangler", "state"),
-			});
-		} finally {
-			await rm(directory, { recursive: true, force: true });
-		}
+				wranglerConfigPath: undefined,
+			},
+			undefined,
+			"local",
+		);
+
+		expect(context).toEqual({
+			wranglerConfigPath,
+			drizzleOutputDirectory: join(directory.path, "drizzle"),
+			databaseName: "cms-staging",
+			databaseId: "11111111-1111-4111-8111-111111111111",
+			migrationsTableName: "d1_migrations",
+			environmentName: "staging",
+			location: "local",
+			persistTo: join(directory.path, ".wrangler", "state"),
+		});
 	});
 });

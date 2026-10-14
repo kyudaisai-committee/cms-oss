@@ -1,4 +1,4 @@
-import { mkdtemp, mkdtempDisposable, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtempDisposable, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -17,30 +17,21 @@ import {
 
 describe("consumer Wrangler configuration", () => {
 	it("selects an existing consumer configuration from the project root", async () => {
-		const directory = await mkdtemp(join(tmpdir(), "cms-cli-wrangler-config-"));
-		const paths = resolveProjectPaths(directory);
+		await using directory = await mkdtempDisposable(join(tmpdir(), "cms-cli-wrangler-config-"));
+		const paths = resolveProjectPaths(directory.path);
 
-		try {
-			const configPath = join(directory, "wrangler.jsonc");
-			await writeFile(configPath, "{}");
+		const configPath = join(directory.path, "wrangler.jsonc");
+		await writeFile(configPath, "{}");
 
-			expect(await resolveConsumerWranglerConfig(paths)).toBe(configPath);
-			expect(await resolveConsumerWranglerConfig(paths, "wrangler.jsonc")).toBe(configPath);
-		} finally {
-			await rm(directory, { recursive: true, force: true });
-		}
+		expect(await resolveConsumerWranglerConfig(paths)).toBe(configPath);
+		expect(await resolveConsumerWranglerConfig(paths, "wrangler.jsonc")).toBe(configPath);
 	});
 
 	it("requires the consumer to provide an existing configuration", async () => {
-		const directory = await mkdtemp(join(tmpdir(), "cms-cli-wrangler-missing-"));
-
-		try {
-			await expect(resolveConsumerWranglerConfig(resolveProjectPaths(directory))).rejects.toThrow(
-				"No existing Wrangler configuration was found",
-			);
-		} finally {
-			await rm(directory, { recursive: true, force: true });
-		}
+		await using directory = await mkdtempDisposable(join(tmpdir(), "cms-cli-wrangler-missing-"));
+		await expect(
+			resolveConsumerWranglerConfig(resolveProjectPaths(directory.path)),
+		).rejects.toThrow("No existing Wrangler configuration was found");
 	});
 
 	it("allows direct settings without a Wrangler file but finds an existing file when present", async () => {
@@ -57,25 +48,21 @@ describe("consumer Wrangler configuration", () => {
 	});
 
 	it("uses a referenced config by default and gives --wrangler-config priority", async () => {
-		const directory = await mkdtemp(join(tmpdir(), "cms-cli-wrangler-reference-"));
-		const paths = resolveProjectPaths(directory);
-		const referencedPath = join(directory, "wrangler.shared.jsonc");
-		const overridePath = join(directory, "wrangler.override.jsonc");
+		await using directory = await mkdtempDisposable(join(tmpdir(), "cms-cli-wrangler-reference-"));
+		const paths = resolveProjectPaths(directory.path);
+		const referencedPath = join(directory.path, "wrangler.shared.jsonc");
+		const overridePath = join(directory.path, "wrangler.override.jsonc");
 
-		try {
-			await writeFile(referencedPath, "{}");
-			await writeFile(overridePath, "{}");
-			const config = validateConfig({ cloudflare: { configPath: "./wrangler.shared.jsonc" } });
+		await writeFile(referencedPath, "{}");
+		await writeFile(overridePath, "{}");
+		const config = validateConfig({ cloudflare: { configPath: "./wrangler.shared.jsonc" } });
 
-			expect(await resolveConsumerWranglerConfig(paths, undefined, config.cloudflare)).toBe(
-				referencedPath,
-			);
-			expect(
-				await resolveConsumerWranglerConfig(paths, "wrangler.override.jsonc", config.cloudflare),
-			).toBe(overridePath);
-		} finally {
-			await rm(directory, { recursive: true, force: true });
-		}
+		expect(await resolveConsumerWranglerConfig(paths, undefined, config.cloudflare)).toBe(
+			referencedPath,
+		);
+		expect(
+			await resolveConsumerWranglerConfig(paths, "wrangler.override.jsonc", config.cloudflare),
+		).toBe(overridePath);
 	});
 
 	it("resolves Wrangler selections relative to a nested cms.config.ts directory", async () => {
@@ -105,80 +92,69 @@ describe("consumer Wrangler configuration", () => {
 	});
 
 	it("rejects an unknown Wrangler env even though the official reader can normalize it", async () => {
-		const directory = await mkdtemp(join(tmpdir(), "cms-cli-wrangler-unknown-env-"));
-		const configPath = join(directory, "wrangler.jsonc");
+		await using directory = await mkdtempDisposable(
+			join(tmpdir(), "cms-cli-wrangler-unknown-env-"),
+		);
+		const configPath = join(directory.path, "wrangler.jsonc");
+		await writeFile(
+			configPath,
+			JSON.stringify({ name: "root-worker", compatibility_date: "2026-10-14" }),
+		);
+		const officialConfig = unstable_readConfig(
+			{ config: configPath, env: "missing" },
+			{ hideWarnings: true },
+		);
+		expect(officialConfig.name).toBe("root-worker-missing");
+		expect(() => assertWranglerEnvironmentExists(configPath, "missing")).toThrow(
+			'Cloudflare environment "missing" is not defined',
+		);
 
-		try {
-			await writeFile(
-				configPath,
-				JSON.stringify({ name: "root-worker", compatibility_date: "2026-10-14" }),
-			);
-			const officialConfig = unstable_readConfig(
-				{ config: configPath, env: "missing" },
-				{ hideWarnings: true },
-			);
-			expect(officialConfig.name).toBe("root-worker-missing");
-			expect(() => assertWranglerEnvironmentExists(configPath, "missing")).toThrow(
-				'Cloudflare environment "missing" is not defined',
-			);
-
-			await writeFile(
-				configPath,
-				JSON.stringify({
-					name: "root-worker",
-					compatibility_date: "2026-10-14",
-					env: { production: { name: "production-worker" } },
-				}),
-			);
-			expect(() => assertWranglerEnvironmentExists(configPath, "production")).not.toThrow();
-		} finally {
-			await rm(directory, { recursive: true, force: true });
-		}
+		await writeFile(
+			configPath,
+			JSON.stringify({
+				name: "root-worker",
+				compatibility_date: "2026-10-14",
+				env: { production: { name: "production-worker" } },
+			}),
+		);
+		expect(() => assertWranglerEnvironmentExists(configPath, "production")).not.toThrow();
 	});
 });
 
 describe("plugin deploy configuration", () => {
 	it("returns the Worker config produced by the Waku Cloudflare plugin", async () => {
-		const directory = await mkdtemp(join(tmpdir(), "cms-cli-plugin-config-"));
-		const paths = resolveProjectPaths(directory);
+		await using directory = await mkdtempDisposable(join(tmpdir(), "cms-cli-plugin-config-"));
+		const paths = resolveProjectPaths(directory.path);
 		const deployDirectory = join(paths.cmsDirectory, ".wrangler", "deploy");
 
-		try {
-			await mkdir(deployDirectory, { recursive: true });
-			await writeFile(
-				join(deployDirectory, "config.json"),
-				JSON.stringify({ configPath: "worker.json" }),
-			);
-			const workerConfigPath = join(deployDirectory, "worker.json");
-			await writeFile(workerConfigPath, JSON.stringify({ name: "consumer-worker" }));
+		await mkdir(deployDirectory, { recursive: true });
+		await writeFile(
+			join(deployDirectory, "config.json"),
+			JSON.stringify({ configPath: "worker.json" }),
+		);
+		const workerConfigPath = join(deployDirectory, "worker.json");
+		await writeFile(workerConfigPath, JSON.stringify({ name: "consumer-worker" }));
 
-			expect(await resolvePluginDeployConfig(paths, "consumer-worker")).toBe(workerConfigPath);
-		} finally {
-			await rm(directory, { recursive: true, force: true });
-		}
+		expect(await resolvePluginDeployConfig(paths, "consumer-worker")).toBe(workerConfigPath);
 	});
 
 	it("rejects a plugin configuration for a different selected Worker", async () => {
-		const directory = await mkdtemp(join(tmpdir(), "cms-cli-plugin-mismatch-"));
-		const paths = resolveProjectPaths(directory);
+		await using directory = await mkdtempDisposable(join(tmpdir(), "cms-cli-plugin-mismatch-"));
+		const paths = resolveProjectPaths(directory.path);
 		const deployDirectory = join(paths.cmsDirectory, ".wrangler", "deploy");
 
-		try {
-			await mkdir(deployDirectory, { recursive: true });
-			await writeFile(
-				join(deployDirectory, "config.json"),
-				JSON.stringify({ configPath: "worker.json" }),
-			);
-			await writeFile(
-				join(deployDirectory, "worker.json"),
-				JSON.stringify({ name: "staging-worker" }),
-			);
+		await mkdir(deployDirectory, { recursive: true });
+		await writeFile(
+			join(deployDirectory, "config.json"),
+			JSON.stringify({ configPath: "worker.json" }),
+		);
+		await writeFile(
+			join(deployDirectory, "worker.json"),
+			JSON.stringify({ name: "staging-worker" }),
+		);
 
-			await expect(resolvePluginDeployConfig(paths, "production-worker")).rejects.toThrow(
-				"different environment",
-			);
-		} finally {
-			await rm(directory, { recursive: true, force: true });
-		}
+		await expect(resolvePluginDeployConfig(paths, "production-worker")).rejects.toThrow(
+			"different environment",
+		);
 	});
 });
