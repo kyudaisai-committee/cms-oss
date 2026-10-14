@@ -13,15 +13,15 @@ Waku 1.0.0-rc.3 と Cloudflare Workers を使った、年度 (`year`) × サイ�
 
 `@repo/api/server` の `createApiApp` は `apps/web` の Waku や表示設定に依存せず Hono app を生成します。D1/R2 と Access 設定はリクエスト時の Worker bindings から受け取ります。`packages/core` の service は D1 接続を受け取って業務処理を行い、`packages/editor` は CMS の型や設定なしで Markdown 編集に使えます。各 workspace は個別に型検査とテストを実行でき、Worker と URL を組み立てて deploy する実行単位は `apps/web` です。
 
-Waku と Wrangler のアプリ固有コマンドは `apps/web` に置きます。`packages/api` は同じ Worker に組み込む workspace で、独自の Worker entry、Wrangler 設定、deploy command は持ちません。ルートでは workspace 全体の検査を実行し、`pnpm verify` は全 package の型検査・テスト・build を対象にします。
+Waku のアプリ本体、Worker entry、開発用 Wrangler 設定と deploy は `apps/web` が所有します。`apps/cli` は利用側の設定を読み、再生成可能な `.cms/` からそのアプリを起動するコマンドを提供します。`packages/api` は同じ Worker に組み込む workspace で、独自の Worker entry、Wrangler 設定、deploy command は持ちません。ルートでは workspace 全体の検査を実行し、`pnpm verify` は全 package の型検査・テスト・build を対象にします。
 
 ## 開発
 
-依存関係をインストールした後、`pnpm --filter @repo/web run dev` で Waku と API を含む Worker の開発サーバーを起動します。開発サーバーは D1 schema を自動作成しません。利用者が `packages/core/src/db/schema.ts` を基に初期 DDL を生成・適用し、ローカルの Cloudflare binding を用意してください。migration SQL、Drizzle Kit 設定、適用履歴はこのリポジトリでは管理しません。Cloudflare Vite plugin と Wrangler は `apps/web/.wrangler/state` にローカル binding state を保存します。
+依存関係をインストールした後、`pnpm --filter @repo/web run dev` で Waku と API を含む Worker の開発サーバーを起動します。開発サーバーは D1 schema を自動作成しません。`packages/core/src/db/schema.ts` が schema の定義元で、初期 DDL と migration SQL は利用側の Drizzle Kit 設定に生成し、明示的に D1 へ適用してください。このリポジトリは利用側の migration ファイルや適用履歴を保持しません。Cloudflare Vite plugin と Wrangler は `apps/web/.wrangler/state` にローカル binding state を保存します。
 
 開発時は Cloudflare の `workerd` が `eval()` を許可しないため、React の RSC client が stack trace 再構築用に試す `eval()` が警告になります。開発時の stack trace 再構築は制限されますが、React は本番ではこの `eval()` を使用しません。
 
-`pnpm verify` は formatter、lint、全 package の TypeScript 検査・Vitest、Waku build を順番に実行します。deploy は Cloudflare リソースを用意し、`apps/web/wrangler.toml` の例示値を置き換えた後に `pnpm --filter @repo/web run deploy` で実行します。このコマンドは `wrangler deploy` のみを実行し、DB migration は適用しません。
+`pnpm verify` は formatter、lint、全 package の TypeScript 検査・Vitest、Waku build を順番に実行します。リポジトリ内の Worker deploy は Cloudflare リソースを用意し、`apps/web/wrangler.toml` の例示値を置き換えた後に `pnpm --filter @repo/web run deploy` で実行します。利用側からは CMS CLI の `cms deploy` を使えます。どちらも Worker の build/deploy のみを行い、DB migration は適用しません。
 
 ## API
 
@@ -50,9 +50,82 @@ API のベースは `/api/v1` です。
 
 ## Cloudflare と D1 schema
 
-`apps/web/wrangler.toml` は Worker 名、D1 database ID、R2 bucket、route、Cloudflare Access の例示値を含みます。deploy 前に対象 Cloudflare アカウントの値へ置き換え、必要な D1 database と R2 bucket を作成してください。binding 名 `DB`、`ASSETS`、`STATIC_ASSETS` はアプリが参照するため維持してください。
+CMS と利用側プロジェクトの責任分担は次のとおりです。
 
-DB schema は `packages/core/src/db/schema.ts` が現行定義です。このリポジトリは migration SQL、Drizzle Kit の設定、migration journal を配布せず、初期 migration も生成しません。新しい DB を用意する利用者は現行 schema から初期 DDL を生成して適用し、その後の migration SQL と適用履歴も自身の運用環境で管理してください。既存 DB を更新する場合は、適用済みの履歴を維持したうえで、その DB の schema から現行 schema への差分 migration を作成・確認してから適用してください。既存 SQL、Drizzle snapshot / journal、D1 の適用履歴は利用者の運用資産として保持し、実 DB の schema が現行定義と一致している場合は初期 DDL の再適用や履歴の reset は不要です。Worker の deploy は migration を実行しません。
+| 管理対象                                                       | 所有・管理する側   |
+| -------------------------------------------------------------- | ------------------ |
+| CMS 本体と現行の Drizzle schema                                | CMS 側             |
+| DB 変更の仕様、データ変換規則、移行手順                        | CMS 側             |
+| 利用先固有の設定、CMS の依存バージョンと lockfile              | 利用側プロジェクト |
+| Drizzle Kit 設定、migration SQL、snapshot、journal             | 利用側プロジェクト |
+| Cloudflare リソース、Secrets、D1 のデータと migration 適用履歴 | 利用側             |
+
+migration は利用側プロジェクトで生成・検証し、利用側が適用するタイミングを決めます。CMS の依存更新によって、利用側の設定や migration 履歴を上書き・初期化しません。`cms init` が生成する `.cms/` には再生成可能な接続ファイルだけを置き、migration 履歴やローカル D1/R2 の永続状態は含めません。
+
+利用側プロジェクトでは、GitHub Releases の製品 tarball の URL を指定して `pnpm add 'https://github.com/kyudaisai-committee/cms-oss/releases/download/<tag>/repo-cli-<version>.tgz'` を実行します。`<tag>` と `<version>` は公開済み Release と製品 asset の値に置き換えてください。現在は公開 Release がないため、この URL は形式を示す例です。利用側でリポジトリを clone・build・pack する必要はありません。
+
+配布物を作成する側は、リポジトリのルートで `pnpm run pack:product --pack-destination /tmp/cms-product` を実行します。このコマンドは workspace の build と製品の組立を行ってから pack します。生成した `.tgz` を Release asset として配布します。GitHub が自動生成する Source code アーカイブとは別の成果物です。npm registry への公開は含みません。
+
+### 利用側の設定
+
+pnpm 12 が `esbuild` / `workerd` の install script を拒否する場合は、利用側の `pnpm-workspace.yaml` の `allowBuilds` にこの2つを許可してください。既存の許可設定は維持します。
+
+```yaml
+allowBuilds:
+    esbuild: true
+    workerd: true
+```
+
+利用側で `cms.config.ts` と `drizzle.config.ts` を用意します。`pnpm exec cms init` は既存設定を読み、再生成可能な `.cms/` に apps/web への参照を用意します。利用側の設定ファイルを作成・変更する処理はありません。
+
+`cms.config.ts` では、既存の Wrangler 設定を参照できます。Worker / D1 / R2 / Access の設定を重ねて記述する必要はありません。
+
+```ts
+import { defineConfig } from "@repo/cli/config";
+
+export default defineConfig({
+    name: "お知らせ CMS",
+    devServer: { allowedHosts: ["cms.example.test"] },
+    cloudflare: { configPath: "./wrangler.jsonc" },
+});
+```
+
+表示設定は `name`、`description`、`iconUrl`、`themeStorageKey`、`newsFormStoragePrefix` の5項目です。Cloudflare の値は公開用の表示設定には含めません。Cloudflare 設定を直接指定する場合は、公式 `WorkerConfig` の `name`、`vars`、`d1_databases`、`r2_buckets` などをそのまま使います。選択した Wrangler 設定に対して、明示したフィールドを上書きし、`vars` はキーごとに結合します。明示した配列は置き換えます。CMS が管理する Worker entry と静的 assets は apps/web の設定で補います。
+
+`--wrangler-config` は `cloudflare.configPath` より優先されます。`--env production` を付けると Wrangler の `env.production` を選び、dev / build / typegen / D1 / deploy で同じ環境を使います。存在しない環境は拒否します。`--config` の相対パスは `--cwd`、Wrangler 設定の相対パスは `cms.config.ts` のディレクトリが基準です。`WorkerConfig` 内のパスは公式 plugin に従い、選択した Wrangler 設定があればそのファイル、なければ `.cms/` が基準です。直接設定のパスを固定する場合は、ESM の API で絶対パスを指定してください。
+
+`drizzle.config.ts` では、配布物が公開する現行 schema を ESM で参照できます。
+
+```ts
+import { cmsSchemaPath } from "@repo/cli/config";
+
+export default {
+    dialect: "sqlite",
+    schema: cmsSchemaPath,
+    out: "./drizzle",
+};
+```
+
+利用側の既存 Wrangler 設定では、D1 binding の `migrations_dir` を Drizzle の `out` に合わせてください。CMS CLI は対象 DB の名前・ID、migration のディレクトリと履歴テーブルの明示指定を照合し、食い違う場合は D1 操作を止めます。`cms typegen` と D1 操作にはこの既存設定を公式 Wrangler CLI へ渡し、CMS 側では Wrangler 設定ファイルを生成・変更しません。
+
+### 初期 migration と更新
+
+初回導入では、次の明示操作で SQL 生成・ローカル D1 への適用・baseline 記録をまとめて実行できます。
+
+```sh
+pnpm exec cms init
+pnpm exec cms migrate init --local
+```
+
+リモート D1 を対象にする場合は `--local` を `--remote` に置き換えます。初期 SQL と Drizzle snapshot / journal は `drizzle.config.ts` の `out`（既定は `./drizzle`）、CMS の baseline は `drizzle/cms-state.json` に保存します。Wrangler の実際の migration 履歴を確認してから baseline を記録するため、適用の取消や失敗だけでは進みません。初期化中は `drizzle/.cms-initial-pending.json` に生成した version / schema / SQL の識別情報を保持し、再実行時は同じ SQL を使います。SQL の内容が変わった場合は自動再開を止めるため、後述の個別操作で確認・適用してください。既存の migration 履歴は上書き・初期化しません。
+
+`pnpm exec cms migrate init` と引数なしで実行した場合は、初期 SQL と履歴の生成だけを行い、DB は変更しません。生成物を確認した後、同じコマンドに `--local` / `--remote` を付けて適用できます。個別に操作する場合は `pnpm exec cms d1 migrations list --local` と `pnpm exec cms d1 migrations apply --local` を使い、適用確認後に `pnpm exec cms migrate mark-baseline --version 0.1.0` を実行します。`--local` は利用側の `.wrangler/state` を使い、Waku と永続状態を共有します。
+
+既存 DB では、実際の schema と migration 履歴を確認したうえで baseline を明示してください。依存更新後の `pnpm exec cms migrate` は変更内容と agent 指定のヒントを表示します。DB 変更がある場合に限り、`--codex` または `--claude` を付けると変更内容を渡して migration の準備を支援します。agent の終了だけでは準備済み状態を記録せず、レビュー後に `pnpm exec cms migrate mark-prepared --version <version>` を実行します。D1 適用履歴は Wrangler が管理するテーブル（既定は `d1_migrations`）に保持し、CMS 状態ファイルへ複製しません。
+
+リポジトリ内の開発用 `apps/web/wrangler.toml` は Worker 名、D1 database ID、R2 bucket、route、Cloudflare Access の例示値を含みます。開発 deploy の前に対象 Cloudflare アカウントの値へ置き換え、必要な D1 database と R2 bucket を作成してください。利用側は自身の既存 Wrangler 設定を CMS CLI に指定します。binding 名 `DB`、`ASSETS`、`STATIC_ASSETS` はアプリが参照するため維持してください。
+
+DB schema は `packages/core/src/db/schema.ts` が現行定義です。CMS CLI は初期 DDL の生成を補助しますが、migration SQL、Drizzle snapshot / journal、schema 状態、D1 の適用履歴は利用者が所有します。既存 DB を更新する場合は、実際の適用履歴を維持したうえで、その DB の schema から現行 schema への差分 migration を作成・確認してから適用してください。実 DB の schema が現行定義と一致している場合、初期 DDL の再適用や履歴の reset は不要です。Worker の deploy は migration を実行しません。
 
 DB に影響する変更案内には、対象 version と前提 schema、データ変換規則、保持される ID と関係、適用順序と適用を省略できる条件、移行後の確認方法を記載し、利用者が更新前に自身の migration を準備・確認できるようにします。
 

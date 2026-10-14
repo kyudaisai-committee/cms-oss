@@ -6,6 +6,8 @@
 	"scripts": {
 		"typecheck": "pnpm -r typecheck",
 		"verify": "pnpm run check && pnpm -r typecheck && pnpm -r test && pnpm -r build",
+		"build:product": "node scripts/product.mjs build",
+		"pack:product": "node scripts/product.mjs pack",
 		"check": "oxlint --deny-warnings && oxfmt --check && cspell .",
 		"fix": "oxlint --fix && pnpm format",
 		"format": "oxfmt && node scripts/sort-txt.ts cspell.txt",

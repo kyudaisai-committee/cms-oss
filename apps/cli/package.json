@@ -1,0 +1,45 @@
+{
+	"name": "@repo/cli",
+	"version": "0.1.0",
+	"private": true,
+	"bin": {
+		"cms": "./bin/run.js"
+	},
+	"type": "module",
+	"imports": {
+		"#cli/*": {
+			"types": "./src/*.ts",
+			"default": "./dist/*.js"
+		}
+	},
+	"exports": {
+		"./package.json": "./package.json",
+		"./config": {
+			"types": "./dist/config.d.ts",
+			"default": "./dist/config.js"
+		},
+		"./db/schema": {
+			"types": "./dist/db/schema.d.ts",
+			"default": "./dist/db/schema.js"
+		}
+	},
+	"scripts": {
+		"build": "tsc -p tsconfig.json",
+		"typecheck": "pnpm run typecheck:config && tsc --noEmit -p tsconfig.json",
+		"typecheck:config": "tsc --ignoreConfig --allowJs --checkJs --noEmit --strict --module nodenext --moduleResolution nodenext --skipLibCheck oclif.config.mjs",
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"@oclif/core": "^5.1.7",
+		"@repo/config": "workspace:*",
+		"@repo/core": "workspace:*",
+		"drizzle-kit": "^0.31.11",
+		"jiti": "^2.7.0",
+		"wrangler": "^4.149.0"
+	},
+	"devDependencies": {
+		"@types/node": "^26.6.5",
+		"typescript": "^7.0.2",
+		"vitest": "^5.0.3"
+	}
+}

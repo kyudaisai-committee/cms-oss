@@ -1,35 +1,21 @@
 import { chromium } from "playwright-core";
-import type { Browser, BrowserContext, Page } from "playwright-core";
-import { afterAll, describe, expect, it } from "vitest";
+import type { Page } from "playwright-core";
+import { describe, expect, it } from "vitest";
 
-import { cleanupIsolatedEnvironment, createIsolatedEnvironment } from "./data-import/environment";
-import type { IsolatedEnvironment } from "./data-import/environment";
+import { createIsolatedEnvironment } from "./data-import/environment";
 import { runSettingsPreview } from "./data-import/settings-preview";
 import { runSettingsWorkflow } from "./data-import/settings-workflow";
 import { seedTarget, targetSite, targetYear } from "./data-import/target";
 
 describe("isolated settings import E2E", () => {
-	let environment: IsolatedEnvironment | undefined;
-	let browser: Browser | undefined;
-	let context: BrowserContext | undefined;
-
-	afterAll(async () => {
-		try {
-			await context?.close();
-		} finally {
-			try {
-				await browser?.close();
-			} finally {
-				if (environment) await cleanupIsolatedEnvironment(environment);
-			}
-		}
-	}, 30_000);
-
 	it("previews a selected source and commits only the resolved import through isolated D1", async () => {
-		environment = await createIsolatedEnvironment();
+		await using environment = await createIsolatedEnvironment();
 		await seedTarget(environment.baseUrl);
-		browser = await chromium.launch({ headless: true, executablePath: environment.chromePath });
-		context = await browser.newContext({
+		await using browser = await chromium.launch({
+			headless: true,
+			executablePath: environment.chromePath,
+		});
+		await using context = await browser.newContext({
 			acceptDownloads: false,
 			viewport: { width: 1440, height: 1400 },
 		});
