@@ -62,7 +62,9 @@ CMS と利用側プロジェクトの責任分担は次のとおりです。
 
 migration は利用側プロジェクトで生成・検証し、利用側が適用するタイミングを決めます。CMS の依存更新によって、利用側の設定や migration 履歴を上書き・初期化しません。`cms init` が生成する `.cms/` には再生成可能な接続ファイルだけを置き、migration 履歴やローカル D1/R2 の永続状態は含めません。
 
-リポジトリから配布物を作る場合は、ルートで `pnpm run build:product`、`pnpm run pack:product --pack-destination /tmp/cms-product` を実行します。利用側プロジェクトでは生成された tarball を指定して `pnpm add /absolute/path/to/repo-cli-0.1.0.tgz` を実行し、続けて `pnpm exec cms init` を実行します。これはローカル tarball からの導入手順で、npm registry への公開は含みません。
+利用側プロジェクトでは、GitHub Releases の製品 tarball の URL を指定して `pnpm add 'https://github.com/kyudaisai-committee/cms-oss/releases/download/<tag>/repo-cli-<version>.tgz'` を実行します。`<tag>` と `<version>` は公開済み Release と製品 asset の値に置き換えてください。現在は公開 Release がないため、この URL は形式を示す例です。利用側でリポジトリを clone・build・pack する必要はありません。
+
+配布物を作成する側は、リポジトリのルートで `pnpm run pack:product --pack-destination /tmp/cms-product` を実行します。このコマンドは workspace の build と製品の組立を行ってから pack します。生成した `.tgz` を Release asset として配布します。GitHub が自動生成する Source code アーカイブとは別の成果物です。npm registry への公開は含みません。
 
 利用側では `cms init` が `cms.config.ts`、`drizzle.config.ts`、再生成可能な `.cms/` を用意します。`cms.config.ts` に対象 Worker と D1 の名前・IDを設定し、利用側が所有する Wrangler 設定を `--wrangler-config` で選びます。`cms typegen` と D1 操作はこの既存設定を公式 Wrangler CLI に渡し、CMS が Wrangler 設定ファイルを生成・変更することはありません。環境を使う場合は、CMS 設定と Wrangler 設定の双方で同じ `--env` を選択します。
 
