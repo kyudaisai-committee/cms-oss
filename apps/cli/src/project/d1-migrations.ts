@@ -70,3 +70,59 @@ export function createD1MigrationArguments(
 	if (context.persistTo !== undefined) args.push("--persist-to", context.persistTo);
 	return args;
 }
+
+export function createD1MigrationHistoryArguments(
+	context: D1MigrationContext,
+	migrationFileName: string,
+): string[] {
+	const escapedTableName = context.migrationsTableName.replaceAll('"', '""');
+	const escapedMigrationName = migrationFileName.replaceAll("'", "''");
+	const query = `SELECT "name" FROM "${escapedTableName}" WHERE "name" = '${escapedMigrationName}';`;
+	const args = [
+		"wrangler",
+		"d1",
+		"execute",
+		context.databaseName,
+		"--config",
+		context.wranglerConfigPath,
+		"--command",
+		query,
+		"--json",
+	];
+	if (context.environmentName !== undefined) args.push("--env", context.environmentName);
+	args.push(`--${context.location}`);
+	if (context.persistTo !== undefined) args.push("--persist-to", context.persistTo);
+	return args;
+}
+
+export function parseD1MigrationHistory(stdout: string): string[] {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(stdout);
+	} catch (error) {
+		throw new Error("Wrangler returned invalid JSON while checking D1 migration history.", {
+			cause: error,
+		});
+	}
+	if (!Array.isArray(parsed)) {
+		throw new Error("Wrangler returned an unexpected D1 migration history response.");
+	}
+
+	const migrationNames: string[] = [];
+	for (const result of parsed) {
+		if (!isRecord(result) || result.success !== true || !Array.isArray(result.results)) {
+			throw new Error("Wrangler could not verify D1 migration history.");
+		}
+		for (const row of result.results) {
+			if (!isRecord(row) || typeof row.name !== "string") {
+				throw new Error("Wrangler returned an invalid D1 migration history row.");
+			}
+			migrationNames.push(row.name);
+		}
+	}
+	return migrationNames;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}

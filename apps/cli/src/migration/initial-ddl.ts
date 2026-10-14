@@ -1,10 +1,17 @@
-import { access, readdir, stat } from "node:fs/promises";
-import { dirname, relative, resolve } from "node:path";
+import { createHash } from "node:crypto";
+import { access, readFile, readdir, stat } from "node:fs/promises";
+import { basename, dirname, join, relative, resolve } from "node:path";
 
 import { createJiti } from "jiti";
 
 interface DrizzleConfigModule {
 	default?: unknown;
+}
+
+export interface CmsInitialMigrationArtifact {
+	fileName: string;
+	path: string;
+	sha256: string;
 }
 
 export async function resolveDrizzleOutputDirectory(configPath: string): Promise<string> {
@@ -64,6 +71,92 @@ export async function assertInitialMigrationArtifactsExist(outputDirectory: stri
 	throw new Error(`Drizzle Kit generated no SQL statements under ${outputDirectory}.`);
 }
 
+export async function findCmsInitialMigrationArtifact(
+	outputDirectory: string,
+	ignoredPaths: string[],
+): Promise<CmsInitialMigrationArtifact | undefined> {
+	let directoryStat: Awaited<ReturnType<typeof stat>>;
+	try {
+		directoryStat = await stat(outputDirectory);
+	} catch (error) {
+		if (hasErrorCode(error, "ENOENT")) return undefined;
+		throw error;
+	}
+	if (!directoryStat.isDirectory()) {
+		throw new Error(`The consumer migration output is not a directory: ${outputDirectory}`);
+	}
+
+	const ignored = new Set(ignoredPaths.map((path) => resolve(path)));
+	const files = (await collectFiles(outputDirectory)).filter((path) => !ignored.has(resolve(path)));
+	if (files.length === 0) return undefined;
+
+	const sqlFiles = files.filter((path) => path.endsWith(".sql"));
+	const snapshots = files.filter((path) => {
+		const relativePath = toRelativeMigrationPath(outputDirectory, path);
+		return relativePath.startsWith("meta/") && relativePath.endsWith("_snapshot.json");
+	});
+	const journalPath = join(outputDirectory, "meta", "_journal.json");
+	const journalFiles = files.filter((path) => resolve(path) === resolve(journalPath));
+	if (
+		sqlFiles.length !== 1 ||
+		snapshots.length !== 1 ||
+		journalFiles.length !== 1 ||
+		files.length !== 3
+	) {
+		throw new Error(
+			`The pending CMS initial migration in ${outputDirectory} is incomplete or contains other migration files. Review the consumer-owned files before retrying; they were not changed.`,
+		);
+	}
+
+	const fileName = basename(sqlFiles[0]!);
+	const tag = fileName.slice(0, -".sql".length);
+	const tagMatch = /^(\d+)_cms-initial$/.exec(tag);
+	if (!tagMatch) {
+		throw new Error(
+			`The pending CMS initial migration in ${outputDirectory} does not have the expected Drizzle migration name. Review the consumer-owned files before retrying; they were not changed.`,
+		);
+	}
+	const expectedSnapshotPath = join(outputDirectory, "meta", `${tagMatch[1]}_snapshot.json`);
+	if (resolve(snapshots[0]!) !== resolve(expectedSnapshotPath)) {
+		throw new Error(
+			`The pending CMS initial migration snapshot does not match ${fileName}. Review the consumer-owned files before retrying; they were not changed.`,
+		);
+	}
+
+	let journal: unknown;
+	try {
+		journal = JSON.parse(await readFile(journalPath, "utf8"));
+	} catch (error) {
+		throw new Error(`The pending CMS initial migration journal is invalid: ${journalPath}`, {
+			cause: error,
+		});
+	}
+	if (
+		!isRecord(journal) ||
+		!Array.isArray(journal.entries) ||
+		journal.entries.length !== 1 ||
+		!isRecord(journal.entries[0]) ||
+		journal.entries[0].idx !== 0 ||
+		journal.entries[0].tag !== tag
+	) {
+		throw new Error(
+			`The pending CMS initial migration journal does not match ${fileName}. Review the consumer-owned files before retrying; they were not changed.`,
+		);
+	}
+
+	if ((await stat(sqlFiles[0]!)).size === 0) {
+		throw new Error(`The pending CMS initial migration is empty: ${sqlFiles[0]}`);
+	}
+	const path = sqlFiles[0]!;
+	return {
+		fileName,
+		path,
+		sha256: createHash("sha256")
+			.update(await readFile(path))
+			.digest("hex"),
+	};
+}
+
 function toRelativeMigrationPath(outputDirectory: string, filePath: string): string {
 	return relative(outputDirectory, filePath).replaceAll("\\", "/");
 }
@@ -89,10 +182,10 @@ async function isFile(path: string): Promise<boolean> {
 	}
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function hasErrorCode(error: unknown, code: string): boolean {
 	return typeof error === "object" && error !== null && "code" in error && error.code === code;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 }

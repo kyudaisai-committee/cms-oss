@@ -6,7 +6,12 @@ import { describe, expect, it } from "vitest";
 
 import { validateConfig } from "@repo/config";
 
-import { createD1MigrationArguments, resolveD1MigrationContext } from "./d1-migrations.js";
+import {
+	createD1MigrationArguments,
+	createD1MigrationHistoryArguments,
+	parseD1MigrationHistory,
+	resolveD1MigrationContext,
+} from "./d1-migrations.js";
 import { resolveProjectPaths } from "./paths.js";
 
 describe("D1 migration command arguments", () => {
@@ -60,6 +65,57 @@ describe("D1 migration command arguments", () => {
 			"/consumer/wrangler.toml",
 			"--remote",
 		]);
+	});
+
+	it("checks the selected database history table through Wrangler JSON output", () => {
+		const context = {
+			wranglerConfigPath: "/consumer/wrangler.jsonc",
+			drizzleOutputDirectory: "/consumer/migrations",
+			databaseName: "cms-staging",
+			databaseId: "11111111-1111-4111-8111-111111111111",
+			migrationsTableName: "cms_history",
+			environmentName: "staging",
+			location: "local" as const,
+			persistTo: "/consumer/.wrangler/state",
+		};
+
+		expect(createD1MigrationHistoryArguments(context, "0000_cms-initial.sql")).toEqual([
+			"wrangler",
+			"d1",
+			"execute",
+			"cms-staging",
+			"--config",
+			"/consumer/wrangler.jsonc",
+			"--command",
+			`SELECT "name" FROM "cms_history" WHERE "name" = '0000_cms-initial.sql';`,
+			"--json",
+			"--env",
+			"staging",
+			"--local",
+			"--persist-to",
+			"/consumer/.wrangler/state",
+		]);
+	});
+});
+
+describe("Wrangler D1 migration history response", () => {
+	it("reads applied names and recognizes empty history", () => {
+		expect(
+			parseD1MigrationHistory(
+				JSON.stringify([{ results: [{ name: "0000_cms-initial.sql" }], success: true }]),
+			),
+		).toEqual(["0000_cms-initial.sql"]);
+		expect(parseD1MigrationHistory(JSON.stringify([{ results: [], success: true }]))).toEqual([]);
+	});
+
+	it("rejects invalid or failed history responses instead of treating them as applied", () => {
+		expect(() => parseD1MigrationHistory("not-json")).toThrow("invalid JSON");
+		expect(() =>
+			parseD1MigrationHistory(JSON.stringify([{ results: [], success: false }])),
+		).toThrow("could not verify");
+		expect(() =>
+			parseD1MigrationHistory(JSON.stringify([{ results: [{}], success: true }])),
+		).toThrow("invalid D1 migration history row");
 	});
 });
 

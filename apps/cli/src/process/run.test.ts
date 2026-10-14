@@ -1,10 +1,10 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdtempDisposable, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { runCommand } from "./run.js";
+import { runCommand, runCommandCaptureStdout } from "./run.js";
 
 describe("runCommand", () => {
 	it("passes arguments literally and preserves the child exit code", async () => {
@@ -30,5 +30,17 @@ describe("runCommand", () => {
 		} finally {
 			await rm(directory, { recursive: true, force: true });
 		}
+	});
+
+	it("captures stdout while preserving the child exit code", async () => {
+		await using directory = await mkdtempDisposable(join(tmpdir(), "cms-cli-process-capture-"));
+		const result = await runCommandCaptureStdout(
+			process.execPath,
+			["--input-type=module", "-e", 'process.stdout.write("captured output");'],
+			directory.path,
+			process.env,
+		);
+
+		expect(result).toEqual({ exitCode: 0, signal: null, stdout: "captured output" });
 	});
 });
