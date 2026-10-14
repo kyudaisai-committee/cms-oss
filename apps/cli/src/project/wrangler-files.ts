@@ -1,18 +1,40 @@
 import { readFile, stat } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 
+import { experimental_readRawConfig, unstable_readConfig, type Unstable_Config } from "wrangler";
+
 import type { ProjectPaths } from "#cli/project/paths";
+import { isCloudflareConfigReference, type CmsCloudflareConfig } from "@repo/config";
 
 const consumerConfigNames = ["wrangler.json", "wrangler.jsonc", "wrangler.toml"] as const;
 
 export async function resolveConsumerWranglerConfig(
 	paths: ProjectPaths,
 	configArgument?: string,
+	cloudflareConfig?: CmsCloudflareConfig,
 ): Promise<string> {
+	const configPath = await findConsumerWranglerConfig(paths, configArgument, cloudflareConfig);
+	if (configPath !== undefined) return configPath;
+
+	throw new Error(
+		`No existing Wrangler configuration was found in ${paths.projectRoot}. Add a wrangler.json, wrangler.jsonc, or wrangler.toml, or select one with --wrangler-config.`,
+	);
+}
+
+export async function findConsumerWranglerConfig(
+	paths: ProjectPaths,
+	configArgument?: string,
+	cloudflareConfig?: CmsCloudflareConfig,
+): Promise<string | undefined> {
 	if (configArgument !== undefined) {
 		const configPath = isAbsolute(configArgument)
 			? configArgument
 			: resolve(paths.projectRoot, configArgument);
+		if (await isFile(configPath)) return configPath;
+		throw new Error(`Wrangler configuration does not exist: ${configPath}`);
+	}
+	if (cloudflareConfig && isCloudflareConfigReference(cloudflareConfig)) {
+		const configPath = resolve(paths.projectRoot, cloudflareConfig.configPath);
 		if (await isFile(configPath)) return configPath;
 		throw new Error(`Wrangler configuration does not exist: ${configPath}`);
 	}
@@ -21,15 +43,42 @@ export async function resolveConsumerWranglerConfig(
 		const configPath = join(paths.projectRoot, name);
 		if (await isFile(configPath)) return configPath;
 	}
+	return undefined;
+}
 
-	throw new Error(
-		`No existing Wrangler configuration was found in ${paths.projectRoot}. Add a wrangler.json, wrangler.jsonc, or wrangler.toml, or select one with --wrangler-config.`,
-	);
+export function assertWranglerEnvironmentExists(configPath: string, environmentName: string): void {
+	let rawConfig: unknown;
+	try {
+		rawConfig = experimental_readRawConfig({ config: configPath }).rawConfig;
+	} catch (error) {
+		throw new Error(`Could not read the selected Wrangler configuration: ${configPath}`, {
+			cause: error,
+		});
+	}
+	if (
+		!isRecord(rawConfig) ||
+		!isRecord(rawConfig.env) ||
+		!Object.hasOwn(rawConfig.env, environmentName)
+	) {
+		throw new Error(
+			`Cloudflare environment "${environmentName}" is not defined in the selected Wrangler configuration: ${configPath}`,
+		);
+	}
+}
+
+export function readConsumerWranglerConfig(
+	configPath: string,
+	environmentName?: string,
+): Unstable_Config {
+	if (environmentName !== undefined) {
+		assertWranglerEnvironmentExists(configPath, environmentName);
+	}
+	return unstable_readConfig({ config: configPath, env: environmentName }, { hideWarnings: true });
 }
 
 export async function resolvePluginDeployConfig(
 	paths: ProjectPaths,
-	expectedWorkerName: string,
+	expectedWorkerName?: string,
 ): Promise<string> {
 	const deployConfigPath = join(paths.cmsDirectory, ".wrangler", "deploy", "config.json");
 	let source: string;
@@ -82,7 +131,7 @@ export async function resolvePluginDeployConfig(
 			cause: error,
 		});
 	}
-	if (!isRecord(workerConfig) || workerConfig.name !== expectedWorkerName) {
+	if (!isRecord(workerConfig) || (expectedWorkerName && workerConfig.name !== expectedWorkerName)) {
 		throw new Error(
 			`The Cloudflare Vite plugin generated Worker configuration for a different environment. Expected worker "${expectedWorkerName}". Run cms build again before deploying.`,
 		);

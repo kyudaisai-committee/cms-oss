@@ -1,26 +1,45 @@
 import {
 	access,
+	lstat,
 	mkdir,
 	mkdtemp,
+	mkdtempDisposable,
 	readFile,
 	readlink,
 	readdir,
+	realpath,
 	rm,
 	stat,
 	utimes,
 	writeFile,
 } from "node:fs/promises";
-import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { ensureStarterFiles, generateCmsProject } from "./generate.js";
+import { generateCmsProject } from "./generate.js";
 import { synchronizeGeneratedProject } from "./generation-sync.js";
 import { resolveProjectPaths } from "./paths.js";
 
 describe("generated consumer project", () => {
+	it("keeps user configuration and typegen output outside the generated source references", async () => {
+		await using directory = await mkdtempDisposable(join(tmpdir(), "cms-cli-generate-boundaries-"));
+		const webSourceDirectory = join(directory.path, "web-source");
+		const paths = { ...resolveProjectPaths(directory.path), webSourceDirectory };
+		const sourceDirectory = join(paths.cmsDirectory, "src");
+
+		await createWebSource(webSourceDirectory);
+		await generateCmsProject(paths);
+
+		expect((await lstat(sourceDirectory)).isSymbolicLink()).toBe(false);
+		await expect(access(join(sourceDirectory, "pages.gen.ts"))).rejects.toMatchObject({
+			code: "ENOENT",
+		});
+		await expect(access(paths.configPath)).rejects.toMatchObject({ code: "ENOENT" });
+		await expect(access(paths.drizzleConfigPath)).rejects.toMatchObject({ code: "ENOENT" });
+	});
+
 	it("keeps consumer config, migrations, and Wrangler state outside regenerated .cms", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "cms-cli-generate-"));
 		const webSourceDirectory = join(directory, "web-source");
@@ -28,7 +47,6 @@ describe("generated consumer project", () => {
 
 		try {
 			await createWebSource(webSourceDirectory);
-			await ensureStarterFiles(paths);
 			const consumerConfig = 'export default { name: "Consumer-owned" };\n';
 			const drizzleConfig = 'export default { out: "./migrations" };\n';
 			await writeFile(paths.configPath, consumerConfig);
@@ -38,18 +56,17 @@ describe("generated consumer project", () => {
 			await writeFile(d1State, "consumer database state");
 
 			await generateCmsProject(paths);
-			const generatedConfigPath = join(paths.cmsDirectory, "waku.config.ts");
-			const generatedConfig = await readFile(generatedConfigPath, "utf8");
-			const generatedRequire = createRequire(join(paths.cmsDirectory, "package.json"));
-			const productRequire = createRequire(join(paths.packageRoot, "package.json"));
-			expect(generatedConfig).toContain('from "../cms.config.ts"');
-			expect(generatedConfig).toContain('from "@repo/cli/web/waku.config.ts"');
-			expect(generatedConfig).toContain("config.devServer.allowedHosts");
-			expect(generatedRequire.resolve("@repo/core/db/schema")).toBe(
-				productRequire.resolve("@repo/core/db/schema"),
+			expect(await readlink(join(paths.cmsDirectory, "waku.config.ts"))).toBe(
+				join(directory, "waku.config.ts"),
+			);
+			expect(await readlink(join(paths.cmsDirectory, "src", "waku.server.ts"))).toBe(
+				join(webSourceDirectory, "waku.server.ts"),
 			);
 			expect(await readlink(join(paths.cmsDirectory, "node_modules", "@repo", "cli"))).toBe(
 				paths.packageRoot,
+			);
+			expect(await realpath(join(paths.cmsDirectory, "node_modules", "@oclif", "core"))).toBe(
+				await realpath(join(paths.packageRoot, "node_modules", "@oclif", "core")),
 			);
 			expect(await readlink(join(paths.cmsDirectory, "node_modules", ".bin"))).toBe(
 				join(paths.packageRoot, "node_modules", ".bin"),
@@ -58,11 +75,10 @@ describe("generated consumer project", () => {
 				join(webSourceDirectory, "pages"),
 			);
 
-			const stableModificationTime = new Date("2000-01-01T00:00:00.000Z");
-			await utimes(generatedConfigPath, stableModificationTime, stableModificationTime);
 			await generateCmsProject(paths);
-			expect(await readFile(generatedConfigPath, "utf8")).toBe(generatedConfig);
-			expect((await stat(generatedConfigPath)).mtimeMs).toBe(stableModificationTime.getTime());
+			expect(await readlink(join(paths.cmsDirectory, "waku.config.ts"))).toBe(
+				join(directory, "waku.config.ts"),
+			);
 			expect(await readFile(paths.configPath, "utf8")).toBe(consumerConfig);
 			expect(await readFile(paths.drizzleConfigPath, "utf8")).toBe(drizzleConfig);
 			expect(await readFile(d1State, "utf8")).toBe("consumer database state");
@@ -93,8 +109,8 @@ describe("generated consumer project", () => {
 			await writeFile(alternateConfigPath, "export default {};\n");
 			await generateCmsProject({ ...paths, configPath: alternateConfigPath });
 
-			expect(await readFile(join(paths.cmsDirectory, "waku.config.ts"), "utf8")).toContain(
-				'from "../alternate.config.ts"',
+			expect(await readlink(join(paths.cmsDirectory, "waku.config.ts"))).toBe(
+				join(directory, "waku.config.ts"),
 			);
 			expect((await stat(stableFilePath)).mtimeMs).toBe(stableModificationTime.getTime());
 			await expect(access(obsoletePath)).rejects.toMatchObject({ code: "ENOENT" });
@@ -122,8 +138,8 @@ describe("generated consumer project", () => {
 			expect(await readFile(join(paths.cmsDirectory, "recovered-marker"), "utf8")).toBe(
 				"previous project",
 			);
-			expect(await readFile(join(paths.cmsDirectory, "waku.config.ts"), "utf8")).toContain(
-				'from "../cms.config.ts"',
+			expect(await readlink(join(paths.cmsDirectory, "waku.config.ts"))).toBe(
+				join(directory, "waku.config.ts"),
 			);
 			await expect(access(temporaryDirectory)).rejects.toMatchObject({ code: "ENOENT" });
 			await expect(access(backupDirectory)).rejects.toMatchObject({ code: "ENOENT" });
@@ -213,8 +229,10 @@ async function createWebSource(directory: string): Promise<void> {
 	for (const entry of ["components", "features", "lib", "middleware", "pages"]) {
 		await mkdir(join(directory, entry), { recursive: true });
 	}
-	for (const file of ["cms-settings.ts", "styles.css", "vite-env.d.ts"]) {
+	for (const file of ["cms-settings.ts", "styles.css", "vite-env.d.ts", "pages.gen.ts"]) {
 		await writeFile(join(directory, file), "");
 	}
+	await writeFile(join(directory, "waku.server.ts"), "export default {};\n");
+	await writeFile(join(directory, "../waku.config.ts"), "export default {};\n");
 	await mkdir(join(directory, "..", "public"), { recursive: true });
 }

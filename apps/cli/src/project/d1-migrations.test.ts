@@ -16,6 +16,7 @@ describe("D1 migration command arguments", () => {
 			drizzleOutputDirectory: "/consumer/drizzle",
 			databaseName: "cms-staging",
 			databaseId: "11111111-1111-4111-8111-111111111111",
+			migrationsTableName: "d1_migrations",
 			environmentName: "staging",
 			location: "local" as const,
 			persistTo: "/consumer/.wrangler/state",
@@ -43,6 +44,7 @@ describe("D1 migration command arguments", () => {
 			drizzleOutputDirectory: "/consumer/drizzle",
 			databaseName: "cms-prod",
 			databaseId: "11111111-1111-4111-8111-111111111111",
+			migrationsTableName: "d1_migrations",
 			environmentName: undefined,
 			location: "remote" as const,
 			persistTo: undefined,
@@ -62,7 +64,7 @@ describe("D1 migration command arguments", () => {
 });
 
 describe("resolveD1MigrationContext", () => {
-	it("requires the selected consumer Wrangler DB and Drizzle directories to match cms.config", async () => {
+	it("uses the same Wrangler env for the selected D1 and consumer Drizzle output", async () => {
 		const directory = await mkdtemp(join(tmpdir(), "cms-cli-d1-context-"));
 		const paths = resolveProjectPaths(directory);
 		const wranglerConfigPath = join(directory, "wrangler.jsonc");
@@ -77,39 +79,32 @@ describe("resolveD1MigrationContext", () => {
 				JSON.stringify({
 					name: "consumer",
 					compatibility_date: "2026-10-14",
-					d1_databases: [
-						{
-							binding: "DB",
-							database_name: "cms-staging",
-							database_id: "11111111-1111-4111-8111-111111111111",
-							migrations_dir: "./drizzle",
+					env: {
+						staging: {
+							name: "consumer-staging",
+							d1_databases: [
+								{
+									binding: "DB",
+									database_name: "cms-staging",
+									database_id: "11111111-1111-4111-8111-111111111111",
+									migrations_dir: "./drizzle",
+								},
+							],
 						},
-					],
+					},
 				}),
 			);
 			const cmsConfig = validateConfig({
-				cloudflare: {
-					databaseName: "cms-local",
-					databaseId: "22222222-2222-4222-8222-222222222222",
-				},
-				environments: {
-					staging: {
-						cloudflare: {
-							databaseName: "cms-staging",
-							databaseId: "11111111-1111-4111-8111-111111111111",
-						},
-					},
-				},
+				cloudflare: { configPath: "./wrangler.jsonc" },
 			});
-			const stagingEnvironment = cmsConfig.environments.staging;
-			if (!stagingEnvironment) throw new Error("The test staging environment was not created.");
 			const context = await resolveD1MigrationContext(
 				paths,
 				{
 					config: cmsConfig,
 					configDirectory: directory,
-					cloudflare: stagingEnvironment.cloudflare,
+					cloudflare: cmsConfig.cloudflare,
 					environmentName: "staging",
+					wranglerConfigPath: undefined,
 				},
 				undefined,
 				"local",
@@ -120,6 +115,7 @@ describe("resolveD1MigrationContext", () => {
 				drizzleOutputDirectory: join(directory, "drizzle"),
 				databaseName: "cms-staging",
 				databaseId: "11111111-1111-4111-8111-111111111111",
+				migrationsTableName: "d1_migrations",
 				environmentName: "staging",
 				location: "local",
 				persistTo: join(directory, ".wrangler", "state"),

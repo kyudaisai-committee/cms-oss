@@ -4,10 +4,11 @@ import {
 	CMS_BINDINGS,
 	CMS_CONFIG_DEFAULTS,
 	defineConfig,
+	isCloudflareConfigReference,
 	projectDisplaySettings,
-	resolveEnvironment,
 	validateConfig,
 	validateDeployConfig,
+	type CmsCloudflareWorkerConfig,
 } from "#config/index";
 
 describe("CMS configuration contract", () => {
@@ -34,10 +35,31 @@ describe("CMS configuration contract", () => {
 		expect(() => defineConfig({ devServer: { allowedHosts: [" "] } })).toThrow();
 	});
 
+	it("uses native Cloudflare WorkerConfig fields and supports a configPath reference", () => {
+		const nativeWorkerConfig: CmsCloudflareWorkerConfig = {
+			name: "consumer-cms",
+			compatibility_date: "2026-09-25",
+			workers_dev: true,
+			d1_databases: [
+				{
+					binding: CMS_BINDINGS.database,
+					database_name: "consumer-db",
+					database_id: "11111111-1111-4111-8111-111111111111",
+				},
+			],
+		};
+		const direct = defineConfig({ cloudflare: nativeWorkerConfig });
+		const reference = defineConfig({ cloudflare: { configPath: "./wrangler.jsonc" } });
+
+		expect(direct.cloudflare).toEqual(nativeWorkerConfig);
+		expect(isCloudflareConfigReference(reference.cloudflare)).toBe(true);
+		expect(() => validateConfig({ cloudflare: { workerName: "old-alias" } })).toThrow();
+	});
+
 	it("trims display settings and keeps only the explicit client projection", () => {
 		const config = defineConfig({
 			name: " Example CMS ",
-			cloudflare: { accessAudience: "private-audience" },
+			cloudflare: { vars: { ACCESS_AUDIENCE: "private-audience" } },
 		});
 
 		expect(projectDisplaySettings(config)).toEqual({
@@ -48,39 +70,27 @@ describe("CMS configuration contract", () => {
 			newsFormStoragePrefix: "cms:news-form",
 		});
 		expect(projectDisplaySettings(config)).not.toHaveProperty("cloudflare");
-	});
-
-	it("rejects unknown config and invalid Cloudflare binding inputs", () => {
 		expect(() => validateConfig({ name: "Example CMS", secret: "not-public" })).toThrow();
-		expect(() => defineConfig({ cloudflare: { databaseId: "not-a-uuid" } })).toThrow();
 	});
 
-	it("requires named environments and does not inherit the base Cloudflare account", () => {
-		const config = defineConfig({
-			cloudflare: { databaseId: "11111111-1111-4111-8111-111111111111" },
-			environments: {
-				staging: {
-					cloudflare: {
-						databaseId: "22222222-2222-4222-8222-222222222222",
-					},
+	it("requires native Worker bindings and Access variables before deploy", () => {
+		const configured: CmsCloudflareWorkerConfig = {
+			name: "consumer-cms",
+			d1_databases: [
+				{
+					binding: "DB",
+					database_name: "consumer-db",
+					database_id: "11111111-1111-4111-8111-111111111111",
 				},
+			],
+			r2_buckets: [{ binding: "ASSETS", bucket_name: "consumer-assets" }],
+			vars: {
+				ACCESS_TEAM_DOMAIN: "committee.cloudflareaccess.com",
+				ACCESS_AUDIENCE: "consumer-audience",
 			},
-		});
+		};
 
-		expect(resolveEnvironment(config, "staging")).toEqual({
-			name: "staging",
-			cloudflare: expect.objectContaining({
-				databaseId: "22222222-2222-4222-8222-222222222222",
-			}),
-		});
-		expect(() => resolveEnvironment(config, "production")).toThrow(
-			"Unknown Cloudflare environment",
-		);
-	});
-
-	it("refuses example Cloudflare settings before deploy", () => {
-		expect(() => validateDeployConfig(CMS_CONFIG_DEFAULTS.cloudflare)).toThrow(
-			"Cloudflare deploy configuration is incomplete",
-		);
+		expect(() => validateDeployConfig(configured)).not.toThrow();
+		expect(() => validateDeployConfig({})).toThrow("Cloudflare deploy configuration is incomplete");
 	});
 });

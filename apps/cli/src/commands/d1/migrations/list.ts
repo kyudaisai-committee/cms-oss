@@ -39,7 +39,7 @@ export default class D1MigrationsList extends BaseCommand {
 				throw error;
 			}
 
-			const environment = createProjectEnvironment(config.config, paths, config.environmentName);
+			const environment = createProjectEnvironment(config, paths);
 			const args = createD1MigrationArguments("list", context);
 			this.log(
 				`Listing ${location} migrations for D1 ${context.databaseName} (${context.databaseId})${context.environmentName ? ` in ${context.environmentName}` : ""}; migrations: ${context.drizzleOutputDirectory}; Wrangler config: ${context.wranglerConfigPath}${context.persistTo ? `; local state: ${context.persistTo}` : ""}.`,

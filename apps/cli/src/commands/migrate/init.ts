@@ -51,7 +51,7 @@ export default class Init extends BaseCommand {
 			const result = await runPnpm(
 				["drizzle-kit", "generate", "--config", paths.drizzleConfigPath, "--name", "cms-initial"],
 				paths.projectRoot,
-				createProjectEnvironment(config.config, paths, config.environmentName),
+				createProjectEnvironment(config, paths),
 			);
 			assertProcessSucceeded(result, "drizzle-kit generate", (message, options) =>
 				this.error(message, options),

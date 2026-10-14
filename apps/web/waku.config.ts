@@ -1,18 +1,62 @@
+import { resolve } from "node:path";
+
 import { cloudflare, type WorkerConfig } from "@cloudflare/vite-plugin";
 import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { defineConfig } from "waku/config";
 
-import type { CmsCloudflareConfig } from "@repo/config";
+import {
+	CMS_BINDINGS,
+	isCloudflareConfigReference,
+	validateConfig,
+	type CmsCloudflareConfig,
+	type CmsCloudflareWorkerConfig,
+	type CmsConfig,
+} from "@repo/config";
 
-export function createCmsWakuConfig(
-	cloudflareConfig?: CmsCloudflareConfig,
-	allowedHosts: string[] = [],
-) {
-	const workerConfig = cloudflareConfig
+export interface CmsRuntimeConfigData {
+	config: CmsConfig;
+	wranglerConfigPath: string | undefined;
+}
+
+export function readCmsRuntimeConfig(
+	environment: Record<string, string | undefined> = process.env,
+): CmsRuntimeConfigData | undefined {
+	const serialized = environment.CMS_RUNTIME_CONFIG;
+	if (serialized === undefined) return undefined;
+
+	let value: unknown;
+	try {
+		value = JSON.parse(serialized);
+	} catch (error) {
+		throw new Error("The CLI-provided CMS runtime configuration is not valid JSON.", {
+			cause: error,
+		});
+	}
+	if (!isRecord(value) || !("config" in value)) {
+		throw new Error("The CLI-provided CMS runtime configuration has an invalid shape.");
+	}
+	if (value.wranglerConfigPath !== undefined && typeof value.wranglerConfigPath !== "string") {
+		throw new Error("The CLI-provided Wrangler configuration path must be a string.");
+	}
+	return {
+		config: validateConfig(value.config),
+		wranglerConfigPath: value.wranglerConfigPath,
+	};
+}
+
+export function createCmsWakuConfig(config?: CmsConfig, wranglerConfigPath?: string) {
+	const cloudflareConfig = config?.cloudflare;
+	const configPathIsReference =
+		cloudflareConfig !== undefined && isCloudflareConfigReference(cloudflareConfig);
+	const pluginConfigPath = wranglerConfigPath;
+	if (configPathIsReference && pluginConfigPath === undefined) {
+		throw new Error("A selected Wrangler config path is required for cloudflare.configPath.");
+	}
+	const workerConfig = config
 		? (resolvedConfig: WorkerConfig) => {
-				Object.assign(resolvedConfig, resolveWorkerConfig(cloudflareConfig));
+				Object.assign(resolvedConfig, resolveCmsWorkerConfig(resolvedConfig, cloudflareConfig));
 			}
 		: undefined;
 	const persistencePath =
@@ -25,10 +69,11 @@ export function createCmsWakuConfig(
 				watch: {
 					ignored: /[\\/]\.wrangler[\\/]/,
 				},
-				allowedHosts,
+				allowedHosts: config?.devServer.allowedHosts ?? [],
 			},
 			plugins: [
 				cloudflare({
+					...(pluginConfigPath ? { configPath: pluginConfigPath } : {}),
 					...(workerConfig ? { config: workerConfig } : {}),
 					viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] },
 					persistState: persistencePath ? { path: persistencePath } : true,
@@ -56,32 +101,40 @@ export function createCmsWakuConfig(
 	});
 }
 
-export default createCmsWakuConfig();
-
-function resolveWorkerConfig(config: CmsCloudflareConfig): Partial<WorkerConfig> {
+export function resolveCmsWorkerConfig(
+	resolvedConfig: CmsCloudflareWorkerConfig,
+	cloudflareConfig: CmsCloudflareConfig | undefined,
+): Partial<WorkerConfig> {
+	const directConfig =
+		cloudflareConfig === undefined || isCloudflareConfigReference(cloudflareConfig)
+			? {}
+			: cloudflareConfig;
+	const existingAssets = {
+		...resolvedConfig.assets,
+		...directConfig.assets,
+	};
 	return {
-		name: config.workerName,
-		main: "./src/waku.server.ts",
-		compatibility_date: config.compatibilityDate,
-		compatibility_flags: config.compatibilityFlags,
-		workers_dev: config.workersDev,
-		cache: { enabled: true },
-		assets: { directory: "./dist/public", binding: "STATIC_ASSETS" },
-		vars: {
-			ACCESS_TEAM_DOMAIN: config.accessTeamDomain,
-			ACCESS_AUDIENCE: config.accessAudience,
-		},
-		routes: config.routes,
-		d1_databases: [
-			{
-				binding: "DB",
-				database_name: config.databaseName,
-				database_id: config.databaseId,
-			},
-		],
-		r2_buckets: [{ binding: "ASSETS", bucket_name: config.bucketName }],
-		observability: {
-			logs: { enabled: true, head_sampling_rate: 1, invocation_logs: true },
+		...resolvedConfig,
+		...directConfig,
+		vars: { ...resolvedConfig.vars, ...directConfig.vars },
+		main: resolve(process.cwd(), "src/waku.server.ts"),
+		assets: {
+			...existingAssets,
+			directory: resolve(process.cwd(), "dist/public"),
+			binding: CMS_BINDINGS.staticAssets,
 		},
 	};
+}
+
+export default createCmsWakuConfigFromEnvironment();
+
+function createCmsWakuConfigFromEnvironment() {
+	const runtimeConfig = readCmsRuntimeConfig();
+	return runtimeConfig
+		? createCmsWakuConfig(runtimeConfig.config, runtimeConfig.wranglerConfigPath)
+		: createCmsWakuConfig();
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 }

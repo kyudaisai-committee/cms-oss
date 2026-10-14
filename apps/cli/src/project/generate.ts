@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { access, mkdir, rename, rm, symlink, writeFile } from "node:fs/promises";
-import { dirname, join, relative, resolve } from "node:path";
+import { access, mkdir, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 
 import {
 	recoverInterruptedGeneration,
@@ -10,49 +10,26 @@ import {
 import { linkProductDependencies } from "#cli/project/package-dependencies";
 import type { ProjectPaths } from "#cli/project/paths";
 
-const sourceEntries = ["components", "features", "lib", "middleware", "pages"] as const;
-const sourceFiles = ["cms-settings.ts", "styles.css", "vite-env.d.ts"] as const;
-
-export async function ensureStarterFiles(paths: ProjectPaths): Promise<void> {
-	try {
-		await access(paths.configPath);
-	} catch {
-		await writeFileAtomically(
-			paths.configPath,
-			'/** CMS configuration. Keep Cloudflare secrets outside this file. */\nimport { defineConfig } from "@repo/cli/config";\n\nexport default defineConfig({});\n',
-		);
-	}
-
-	try {
-		await access(paths.drizzleConfigPath);
-	} catch {
-		await writeFileAtomically(
-			paths.drizzleConfigPath,
-			[
-				'import { createRequire } from "node:module";',
-				"",
-				"const require = createRequire(import.meta.url);",
-				"",
-				"export default {",
-				'\tdialect: "sqlite",',
-				'\tschema: require.resolve("@repo/cli/db/schema"),',
-				'\tout: "./drizzle",',
-				"};",
-				"",
-			].join("\n"),
-		);
-	}
-}
+const excludedSourceNames = new Set([
+	"coverage",
+	"e2e",
+	"node_modules",
+	"test",
+	"tests",
+	"pages.gen.ts",
+	"waku.server.ts",
+]);
 
 export async function generateCmsProject(paths: ProjectPaths): Promise<void> {
 	await recoverInterruptedGeneration(paths.cmsDirectory);
 	const webSource = await resolveWebSource(paths);
+	const webRoot = dirname(webSource);
 	const generationId = randomUUID();
 	const temporaryDirectory = `${paths.cmsDirectory}.tmp-${generationId}`;
 
 	await mkdir(temporaryDirectory, { recursive: true });
 	try {
-		await populateGeneratedProject(temporaryDirectory, webSource, paths);
+		await populateGeneratedProject(temporaryDirectory, webSource, webRoot, paths);
 		await writeGenerationManifest(temporaryDirectory);
 		await synchronizeGeneratedProject(temporaryDirectory, paths.cmsDirectory);
 	} finally {
@@ -63,6 +40,7 @@ export async function generateCmsProject(paths: ProjectPaths): Promise<void> {
 async function populateGeneratedProject(
 	generatedDirectory: string,
 	webSource: string,
+	webRoot: string,
 	paths: ProjectPaths,
 ): Promise<void> {
 	const srcDirectory = join(generatedDirectory, "src");
@@ -80,49 +58,31 @@ async function populateGeneratedProject(
 			2,
 		)}\n`,
 	);
-	await writeFile(join(generatedDirectory, "waku.config.ts"), renderWakuConfig(paths));
 	await writeFile(join(generatedDirectory, "tsconfig.json"), renderTsconfig());
-	await writeFile(join(srcDirectory, "waku.server.ts"), renderServerEntry());
-
-	for (const entry of sourceEntries) {
-		await createSymlink(join(webSource, entry), join(srcDirectory, entry), "dir");
-	}
-	for (const file of sourceFiles) {
-		await createSymlink(join(webSource, file), join(srcDirectory, file), "file");
-	}
-	await createSymlink(join(webSource, "../public"), join(generatedDirectory, "public"), "dir");
+	await createSymlink(
+		join(webRoot, "waku.config.ts"),
+		join(generatedDirectory, "waku.config.ts"),
+		"file",
+	);
+	await createSymlink(
+		join(webSource, "waku.server.ts"),
+		join(srcDirectory, "waku.server.ts"),
+		"file",
+	);
+	await linkRuntimeSourceEntries(webSource, srcDirectory);
+	await createSymlink(join(webRoot, "public"), join(generatedDirectory, "public"), "dir");
 }
 
-function renderWakuConfig(paths: ProjectPaths): string {
-	const relativeConfigPath = relative(paths.cmsDirectory, paths.configPath).replaceAll("\\", "/");
-	const configSpecifier = relativeConfigPath.startsWith(".")
-		? relativeConfigPath
-		: `./${relativeConfigPath}`;
-	return [
-		`import consumerConfig from ${JSON.stringify(configSpecifier)};`,
-		'import { resolveEnvironment, validateConfig } from "@repo/cli/config";',
-		'import { createCmsWakuConfig } from "@repo/cli/web/waku.config.ts";',
-		"",
-		"const config = validateConfig(consumerConfig);",
-		"const environment = resolveEnvironment(config, process.env.CMS_ENVIRONMENT_NAME);",
-		"",
-		"export default createCmsWakuConfig(environment.cloudflare, config.devServer.allowedHosts);",
-		"",
-	].join("\n");
+async function linkRuntimeSourceEntries(webSource: string, destination: string): Promise<void> {
+	for (const entry of await readdir(webSource, { withFileTypes: true })) {
+		if (excludedSourceNames.has(entry.name) || isTestFile(entry.name)) continue;
+		const kind = entry.isDirectory() ? "dir" : "file";
+		await createSymlink(join(webSource, entry.name), join(destination, entry.name), kind);
+	}
 }
 
-function renderServerEntry(): string {
-	return [
-		'import { fsRouter } from "waku";',
-		'import adapter from "waku/adapters/cloudflare";',
-		"",
-		'const handlers = fsRouter(import.meta.glob("./pages/**/*.{tsx,ts}"));',
-		"",
-		"export default adapter(handlers, {",
-		'\tmiddlewareModules: import.meta.glob(["./middleware/*.ts", "!./middleware/*.test.ts"]),',
-		"});",
-		"",
-	].join("\n");
+function isTestFile(name: string): boolean {
+	return /\.test\.(?:[cm]?[jt]sx?)$/.test(name);
 }
 
 function renderTsconfig(): string {
@@ -146,17 +106,18 @@ function renderTsconfig(): string {
 }
 
 async function resolveWebSource(paths: ProjectPaths): Promise<string> {
+	if (await isDirectory(paths.webSourceDirectory)) return paths.webSourceDirectory;
+	const developmentSource = resolve(paths.packageRoot, "../web/src");
+	if (await isDirectory(developmentSource)) return developmentSource;
+	throw new Error("The CMS distribution does not contain the web runtime sources.");
+}
+
+async function isDirectory(path: string): Promise<boolean> {
 	try {
-		await access(paths.webSourceDirectory);
-		return paths.webSourceDirectory;
-	} catch {
-		const developmentSource = resolve(paths.packageRoot, "../web/src");
-		try {
-			await access(developmentSource);
-			return developmentSource;
-		} catch {
-			throw new Error("The CMS distribution does not contain the web runtime sources.");
-		}
+		return (await stat(path)).isDirectory();
+	} catch (error) {
+		if (hasErrorCode(error, "ENOENT") || hasErrorCode(error, "ENOTDIR")) return false;
+		throw error;
 	}
 }
 
@@ -167,8 +128,11 @@ async function createSymlink(
 ): Promise<void> {
 	try {
 		await access(target);
-	} catch {
-		throw new Error(`Required CMS runtime file is missing: ${target}`);
+	} catch (error) {
+		if (hasErrorCode(error, "ENOENT") || hasErrorCode(error, "ENOTDIR")) {
+			throw new Error(`Required CMS runtime file is missing: ${target}`, { cause: error });
+		}
+		throw error;
 	}
 	await symlink(
 		target,
@@ -177,9 +141,6 @@ async function createSymlink(
 	);
 }
 
-async function writeFileAtomically(path: string, content: string): Promise<void> {
-	await mkdir(dirname(path), { recursive: true });
-	const temporaryPath = `${path}.tmp-${randomUUID()}`;
-	await writeFile(temporaryPath, content, { flag: "wx" });
-	await rename(temporaryPath, path);
+function hasErrorCode(error: unknown, code: string): boolean {
+	return typeof error === "object" && error !== null && "code" in error && error.code === code;
 }

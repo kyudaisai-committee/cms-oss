@@ -40,7 +40,7 @@ export default class D1MigrationsApply extends BaseCommand {
 				throw error;
 			}
 
-			const environment = createProjectEnvironment(config.config, paths, config.environmentName);
+			const environment = createProjectEnvironment(config, paths);
 			const args = createD1MigrationArguments("apply", context);
 			this.log(
 				`Applying ${location} migrations to D1 ${context.databaseName} (${context.databaseId})${context.environmentName ? ` in ${context.environmentName}` : ""}; migrations: ${context.drizzleOutputDirectory}; Wrangler config: ${context.wranglerConfigPath}${context.persistTo ? `; local state: ${context.persistTo}` : ""}. Wrangler will request confirmation when interactive.`,

@@ -1,19 +1,19 @@
 import { delimiter, join } from "node:path";
 
+import type { LoadedCmsConfig } from "#cli/project/config";
 import type { ProjectPaths } from "#cli/project/paths";
-import { projectDisplaySettings, type CmsConfig } from "@repo/config";
+import { projectDisplaySettings } from "@repo/config";
 
 export function createProjectEnvironment(
-	config: CmsConfig,
+	loadedConfig: LoadedCmsConfig,
 	paths: ProjectPaths,
-	environmentName?: string,
 ): NodeJS.ProcessEnv {
 	const environment: NodeJS.ProcessEnv = { ...process.env };
 	const productBinDirectory = join(paths.packageRoot, "node_modules", ".bin");
 	environment.PATH = environment.PATH
 		? `${productBinDirectory}${delimiter}${environment.PATH}`
 		: productBinDirectory;
-	const displaySettings = projectDisplaySettings(config);
+	const displaySettings = projectDisplaySettings(loadedConfig.config);
 	const exposedSettings: Record<string, string | undefined> = {
 		VITE_CMS_NAME: displaySettings.name,
 		VITE_CMS_DESCRIPTION: displaySettings.description,
@@ -36,10 +36,19 @@ export function createProjectEnvironment(
 		}
 	}
 	environment.CMS_WRANGLER_STATE_DIR = paths.wranglerStateDirectory;
-	if (environmentName === undefined) {
-		delete environment.CMS_ENVIRONMENT_NAME;
+	environment.CMS_RUNTIME_CONFIG = JSON.stringify({
+		config: loadedConfig.config,
+		wranglerConfigPath: loadedConfig.wranglerConfigPath,
+	});
+	if (loadedConfig.environmentName === undefined) {
+		delete environment.CLOUDFLARE_ENV;
 	} else {
-		environment.CMS_ENVIRONMENT_NAME = environmentName;
+		environment.CLOUDFLARE_ENV = loadedConfig.environmentName;
+	}
+	if (loadedConfig.wranglerConfigPath === undefined) {
+		delete environment.CLOUDFLARE_VITE_WRANGLER_CONFIG_PATH;
+	} else {
+		environment.CLOUDFLARE_VITE_WRANGLER_CONFIG_PATH = loadedConfig.wranglerConfigPath;
 	}
 	return environment;
 }

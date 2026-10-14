@@ -12,11 +12,10 @@ export default class Typegen extends BaseCommand {
 	async run(): Promise<void> {
 		const { flags } = await this.parse(Typegen);
 		await this.withProject(flags, async ({ paths, config }) => {
-			const wranglerConfigPath = await resolveConsumerWranglerConfig(
-				paths,
-				flags["wrangler-config"],
-			);
-			const environment = createProjectEnvironment(config.config, paths, config.environmentName);
+			const wranglerConfigPath =
+				config.wranglerConfigPath ??
+				(await resolveConsumerWranglerConfig(paths, flags["wrangler-config"], config.cloudflare));
+			const environment = createProjectEnvironment(config, paths);
 			const routeTypes = await runPnpm(
 				["waku", "router", "typegen"],
 				paths.cmsDirectory,

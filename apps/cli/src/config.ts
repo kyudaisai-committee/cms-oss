@@ -2,15 +2,16 @@ export {
 	CMS_BINDINGS,
 	CMS_CONFIG_DEFAULTS,
 	defineConfig,
+	isCloudflareConfigReference,
 	projectDisplaySettings,
-	resolveEnvironment,
 	validateConfig,
 	validateDeployConfig,
 } from "@repo/config";
 export type {
 	CmsCloudflareConfig,
+	CmsCloudflareConfigReference,
+	CmsCloudflareWorkerConfig,
 	CmsConfig,
 	CmsConfigInput,
 	CmsDisplaySettings,
-	ResolvedCmsEnvironment,
 } from "@repo/config";

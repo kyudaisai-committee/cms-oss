@@ -1,3 +1,4 @@
+import type { WorkerConfig } from "@cloudflare/vite-plugin";
 import { z } from "zod";
 
 const nonEmptyText = z.string().trim().min(1);
@@ -22,60 +23,54 @@ const devServerConfigSchema = z
 	})
 	.strict();
 
-const cloudflareConfigSchema = z
+const cloudflareConfigReferenceSchema = z
 	.object({
-		workerName: z
-			.string()
-			.trim()
-			.regex(/^[a-z0-9-]+$/)
-			.default("cms"),
-		compatibilityDate: z.iso.date().default("2026-09-25"),
-		compatibilityFlags: z.array(nonEmptyText).default(["nodejs_als"]),
-		workersDev: z.boolean().default(true),
-		databaseName: z
-			.string()
-			.trim()
-			.regex(/^[a-zA-Z0-9_-]+$/)
-			.default("cms-local"),
-		databaseId: z.uuid().default("00000000-0000-0000-0000-000000000000"),
-		bucketName: z
-			.string()
-			.trim()
-			.regex(/^[a-z0-9-]+$/)
-			.default("cms-assets"),
-		accessTeamDomain: nonEmptyText.default("example.cloudflareaccess.com"),
-		accessAudience: nonEmptyText.default("replace-with-cloudflare-access-audience"),
-		routes: z.array(nonEmptyText).default([]),
+		configPath: nonEmptyText,
 	})
 	.strict();
 
-const environmentSchema = z
-	.object({
-		cloudflare: cloudflareConfigSchema,
-	})
-	.strict();
+const removedCloudflareAliases = new Set([
+	"workerName",
+	"compatibilityDate",
+	"compatibilityFlags",
+	"workersDev",
+	"databaseName",
+	"databaseId",
+	"bucketName",
+	"accessTeamDomain",
+	"accessAudience",
+]);
+
+const cloudflareConfigSchema = z
+	.union([
+		cloudflareConfigReferenceSchema,
+		z.custom<CmsCloudflareWorkerConfig>(
+			(value) =>
+				isRecord(value) &&
+				!("configPath" in value) &&
+				!Object.keys(value).some((name) => removedCloudflareAliases.has(name)),
+			"Expected native Cloudflare WorkerConfig fields or a configPath reference.",
+		),
+	])
+	.default({});
 
 const cmsConfigSchema = displaySettingsSchema
 	.extend({
 		devServer: devServerConfigSchema.default(() => devServerConfigSchema.parse({})),
-		cloudflare: cloudflareConfigSchema.default(() => cloudflareConfigSchema.parse({})),
-		environments: z.record(z.string().trim().min(1), environmentSchema).default({}),
+		cloudflare: cloudflareConfigSchema,
 	})
 	.strict();
 
 export type CmsConfigInput = z.input<typeof cmsConfigSchema>;
 export type CmsConfig = z.output<typeof cmsConfigSchema>;
 export type CmsCloudflareConfig = CmsConfig["cloudflare"];
+export type CmsCloudflareConfigReference = z.output<typeof cloudflareConfigReferenceSchema>;
+export type CmsCloudflareWorkerConfig = Omit<Partial<WorkerConfig>, "configPath">;
 export type CmsDevServerConfig = CmsConfig["devServer"];
 export type CmsDisplaySettings = Pick<
 	CmsConfig,
 	"name" | "description" | "iconUrl" | "themeStorageKey" | "newsFormStoragePrefix"
 >;
-
-export interface ResolvedCmsEnvironment {
-	name: string | undefined;
-	cloudflare: CmsCloudflareConfig;
-}
 
 export const CMS_BINDINGS = Object.freeze({
 	database: "DB",
@@ -93,34 +88,35 @@ export function validateConfig(input: unknown): CmsConfig {
 	return cmsConfigSchema.parse(input);
 }
 
-export function resolveEnvironment(
-	config: CmsConfig,
-	environmentName?: string,
-): ResolvedCmsEnvironment {
-	if (environmentName === undefined) {
-		return { name: undefined, cloudflare: config.cloudflare };
-	}
-
-	const environment = config.environments[environmentName];
-	if (!environment) {
-		throw new Error(
-			`Unknown Cloudflare environment "${environmentName}". Define it in cms.config.ts before using --env.`,
-		);
-	}
-
-	return { name: environmentName, cloudflare: environment.cloudflare };
+export function isCloudflareConfigReference(
+	config: CmsCloudflareConfig,
+): config is CmsCloudflareConfigReference {
+	return "configPath" in config;
 }
 
-export function validateDeployConfig(config: CmsCloudflareConfig): void {
+export function validateDeployConfig(config: CmsCloudflareWorkerConfig): void {
 	const errors: string[] = [];
-	if (config.databaseId === "00000000-0000-0000-0000-000000000000") {
-		errors.push("cloudflare.databaseId must be set to a real D1 database ID");
+	if (typeof config.name !== "string" || config.name.trim().length === 0) {
+		errors.push("cloudflare.name must be set to the Worker name");
 	}
-	if (config.accessTeamDomain === "example.cloudflareaccess.com") {
-		errors.push("cloudflare.accessTeamDomain must be set to the Cloudflare Access team domain");
+
+	const database = config.d1_databases?.find(
+		(binding) => binding.binding === CMS_BINDINGS.database,
+	);
+	if (!database?.database_id || database.database_id === "00000000-0000-0000-0000-000000000000") {
+		errors.push(`cloudflare.d1_databases must include a ${CMS_BINDINGS.database} binding`);
 	}
-	if (config.accessAudience === "replace-with-cloudflare-access-audience") {
-		errors.push("cloudflare.accessAudience must be set to the Cloudflare Access audience");
+	const assets = config.r2_buckets?.find((binding) => binding.binding === CMS_BINDINGS.assets);
+	if (!assets?.bucket_name) {
+		errors.push(`cloudflare.r2_buckets must include an ${CMS_BINDINGS.assets} binding`);
+	}
+	if (!isConfiguredAccessValue(config.vars?.ACCESS_TEAM_DOMAIN)) {
+		errors.push(
+			"cloudflare.vars.ACCESS_TEAM_DOMAIN must be set to the Cloudflare Access team domain",
+		);
+	}
+	if (!isConfiguredAccessValue(config.vars?.ACCESS_AUDIENCE)) {
+		errors.push("cloudflare.vars.ACCESS_AUDIENCE must be set to the Cloudflare Access audience");
 	}
 
 	if (errors.length > 0) {
@@ -136,4 +132,17 @@ export function projectDisplaySettings(config: CmsConfig): CmsDisplaySettings {
 		themeStorageKey: config.themeStorageKey,
 		newsFormStoragePrefix: config.newsFormStoragePrefix,
 	};
+}
+
+function isConfiguredAccessValue(value: unknown): value is string {
+	return (
+		typeof value === "string" &&
+		value.trim().length > 0 &&
+		value !== "example.cloudflareaccess.com" &&
+		!value.startsWith("replace-with-")
+	);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 }

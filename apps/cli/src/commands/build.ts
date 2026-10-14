@@ -12,7 +12,7 @@ export default class Build extends BaseCommand {
 			const result = await runPnpm(
 				["waku", "build"],
 				paths.cmsDirectory,
-				createProjectEnvironment(config.config, paths, config.environmentName),
+				createProjectEnvironment(config, paths),
 			);
 			assertProcessSucceeded(result, "waku build", (message, options) =>
 				this.error(message, options),
