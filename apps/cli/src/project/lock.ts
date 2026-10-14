@@ -21,10 +21,11 @@ export async function withProjectLock<T>(
 ): Promise<T> {
 	const lockPath = join(projectRoot, ".cms.lock");
 	const { lockHandle, owner } = await acquireLock(lockPath);
+	await using heldLockHandle = lockHandle;
 	try {
 		return await operation();
 	} finally {
-		await releaseOwnedLock(lockPath, lockHandle, owner);
+		await removeLockOwnedByHandle(lockPath, heldLockHandle, owner);
 	}
 }
 
@@ -48,11 +49,8 @@ async function acquireLock(lockPath: string): Promise<HeldLock> {
 			await lockHandle.writeFile(`${JSON.stringify(owner)}\n`);
 			return { lockHandle, owner };
 		} catch (error) {
-			try {
-				await removeLockOwnedByHandle(lockPath, lockHandle);
-			} finally {
-				await lockHandle.close();
-			}
+			await using failedLockHandle = lockHandle;
+			await removeLockOwnedByHandle(lockPath, failedLockHandle);
 			throw error;
 		}
 	}
@@ -78,14 +76,11 @@ async function recoverStaleLock(lockPath: string): Promise<boolean> {
 		}
 		throw error;
 	}
+	await using recoveryGuardHandle = guardHandle;
 	try {
-		await guardHandle.writeFile(`${JSON.stringify(guardOwner)}\n`);
+		await recoveryGuardHandle.writeFile(`${JSON.stringify(guardOwner)}\n`);
 	} catch (error) {
-		try {
-			await removeLockOwnedByHandle(guardPath, guardHandle);
-		} finally {
-			await guardHandle.close();
-		}
+		await removeLockOwnedByHandle(guardPath, recoveryGuardHandle);
 		throw error;
 	}
 
@@ -127,7 +122,7 @@ async function recoverStaleLock(lockPath: string): Promise<boolean> {
 		await restoreRecoveredLock(recoveryPath, lockPath);
 		return false;
 	} finally {
-		await releaseOwnedLock(guardPath, guardHandle, guardOwner);
+		await removeLockOwnedByHandle(guardPath, recoveryGuardHandle, guardOwner);
 	}
 }
 
@@ -153,18 +148,6 @@ async function isMissing(path: string): Promise<boolean> {
 	} catch (error) {
 		if (hasErrorCode(error, "ENOENT")) return true;
 		throw error;
-	}
-}
-
-async function releaseOwnedLock(
-	lockPath: string,
-	lockHandle: FileHandle,
-	owner: LockOwner,
-): Promise<void> {
-	try {
-		await removeLockOwnedByHandle(lockPath, lockHandle, owner);
-	} finally {
-		await lockHandle.close();
 	}
 }
 

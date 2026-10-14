@@ -29,33 +29,33 @@ export async function runCommandCaptureStdout(
 	return { exitCode: result.exitCode, signal: result.signal, stdout: result.stdout ?? "" };
 }
 
-function spawnCommand(
+async function spawnCommand(
 	command: string,
 	args: string[],
 	cwd: string,
 	env: NodeJS.ProcessEnv,
 	captureStdout: boolean,
 ): Promise<ProcessResult & { stdout?: string }> {
-	return new Promise((resolve, reject) => {
-		const child = spawn(command, args, {
-			cwd,
-			env,
-			stdio: captureStdout ? ["inherit", "pipe", "inherit"] : "inherit",
-			shell: false,
-		});
-		const stdoutChunks: string[] = [];
-		if (captureStdout) {
-			child.stdout?.setEncoding("utf8");
-			child.stdout?.on("data", (chunk: string) => stdoutChunks.push(chunk));
-		}
-		const forwardSignal = (signal: NodeJS.Signals) => {
-			child.kill(signal);
-		};
-		const handleInterrupt = () => forwardSignal("SIGINT");
-		const handleTermination = () => forwardSignal("SIGTERM");
-		process.on("SIGINT", handleInterrupt);
-		process.on("SIGTERM", handleTermination);
+	using child = spawn(command, args, {
+		cwd,
+		env,
+		stdio: captureStdout ? ["inherit", "pipe", "inherit"] : "inherit",
+		shell: false,
+	});
+	const stdoutChunks: string[] = [];
+	if (captureStdout) {
+		child.stdout?.setEncoding("utf8");
+		child.stdout?.on("data", (chunk: string) => stdoutChunks.push(chunk));
+	}
+	const forwardSignal = (signal: NodeJS.Signals) => {
+		child.kill(signal);
+	};
+	const handleInterrupt = () => forwardSignal("SIGINT");
+	const handleTermination = () => forwardSignal("SIGTERM");
+	process.on("SIGINT", handleInterrupt);
+	process.on("SIGTERM", handleTermination);
 
+	return await new Promise((resolve, reject) => {
 		child.once("error", (error) => {
 			process.off("SIGINT", handleInterrupt);
 			process.off("SIGTERM", handleTermination);

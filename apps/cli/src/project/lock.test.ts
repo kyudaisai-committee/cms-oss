@@ -14,7 +14,7 @@ describe("consumer project lock", () => {
 		await using directory = await mkdtempDisposable(join(tmpdir(), "cms-cli-lock-stale-"));
 		const projectRoot = directory.path;
 		const lockPath = join(projectRoot, ".cms.lock");
-		const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 60000)"], {
+		using child = spawn(process.execPath, ["-e", "setInterval(() => {}, 60000)"], {
 			stdio: "ignore",
 		});
 		const staleProcessId = child.pid;
@@ -42,7 +42,7 @@ describe("consumer project lock", () => {
 		await using directory = await mkdtempDisposable(join(tmpdir(), "cms-cli-lock-legacy-"));
 		const projectRoot = directory.path;
 		const lockPath = join(projectRoot, ".cms.lock");
-		const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 60000)"], {
+		using child = spawn(process.execPath, ["-e", "setInterval(() => {}, 60000)"], {
 			stdio: "ignore",
 		});
 		const staleProcessId = child.pid;
