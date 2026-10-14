@@ -1,5 +1,6 @@
 import {
 	access,
+	chmod,
 	lstat,
 	mkdir,
 	mkdtemp,
@@ -10,6 +11,7 @@ import {
 	realpath,
 	rm,
 	stat,
+	symlink,
 	utimes,
 	writeFile,
 } from "node:fs/promises";
@@ -19,7 +21,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { generateCmsProject } from "./generate.js";
-import { synchronizeGeneratedProject } from "./generation-sync.js";
+import { synchronizeGeneratedProject, writeGenerationManifest } from "./generation-sync.js";
 import { resolveProjectPaths } from "./paths.js";
 
 describe("generated consumer project", () => {
@@ -162,6 +164,7 @@ describe("generated consumer project", () => {
 		try {
 			await mkdir(sourceDirectory, { recursive: true });
 			await mkdir(destinationDirectory, { recursive: true });
+			await mkdir(join(destinationDirectory, "blocked"), { recursive: true });
 			await mkdir(join(destinationDirectory, "obsolete"), { recursive: true });
 			await writeFile(join(sourceDirectory, "package.json"), '{"name":"updated"}\n');
 			await writeFile(
@@ -170,20 +173,21 @@ describe("generated consumer project", () => {
 			);
 			await writeFile(manifestPath, previousManifestContents);
 			await writeFile(join(destinationDirectory, "package.json"), '{"name":"old"}\n');
-			await writeFile(join(destinationDirectory, "blocked"), "prevents obsolete cleanup");
-			await writeFile(join(destinationDirectory, "obsolete", "file"), "obsolete managed file");
-
-			await expect(
-				synchronizeGeneratedProject(sourceDirectory, destinationDirectory),
-			).rejects.toThrow();
-			expect(await readFile(manifestPath, "utf8")).toBe(previousManifestContents);
-			expect(await readFile(join(destinationDirectory, "package.json"), "utf8")).toBe(
-				'{"name":"updated"}\n',
-			);
-
-			await rm(join(destinationDirectory, "blocked"));
-			await mkdir(join(destinationDirectory, "blocked"));
 			await writeFile(join(destinationDirectory, "blocked", "old"), "obsolete managed file");
+			await writeFile(join(destinationDirectory, "obsolete", "file"), "obsolete managed file");
+			await chmod(join(destinationDirectory, "blocked"), 0o555);
+
+			try {
+				await expect(
+					synchronizeGeneratedProject(sourceDirectory, destinationDirectory),
+				).rejects.toMatchObject({ code: expect.stringMatching(/EACCES|EPERM/) });
+				expect(await readFile(manifestPath, "utf8")).toBe(previousManifestContents);
+				expect(await readFile(join(destinationDirectory, "package.json"), "utf8")).toBe(
+					'{"name":"updated"}\n',
+				);
+			} finally {
+				await chmod(join(destinationDirectory, "blocked"), 0o755);
+			}
 			await synchronizeGeneratedProject(sourceDirectory, destinationDirectory);
 
 			expect(await readFile(manifestPath, "utf8")).toBe(
@@ -198,6 +202,90 @@ describe("generated consumer project", () => {
 		} finally {
 			await rm(directory, { recursive: true, force: true });
 		}
+	});
+
+	it("skips obsolete descendants after a generated directory becomes a file", async () => {
+		await using directory = await mkdtempDisposable(
+			join(tmpdir(), "cms-cli-generate-directory-to-file-"),
+		);
+		const sourceDirectory = join(directory.path, "source");
+		const destinationDirectory = join(directory.path, ".cms");
+		const previousManifest = {
+			managedPaths: [".cms-generated.json", "runtime", "runtime/keep.txt"],
+		};
+
+		await mkdir(sourceDirectory, { recursive: true });
+		await mkdir(join(destinationDirectory, "runtime"), { recursive: true });
+		await writeFile(join(sourceDirectory, "runtime"), "runtime module");
+		await writeFile(
+			join(destinationDirectory, ".cms-generated.json"),
+			JSON.stringify(previousManifest),
+		);
+		await writeFile(join(destinationDirectory, "runtime", "keep.txt"), "old generated file");
+		await writeGenerationManifest(sourceDirectory);
+
+		await synchronizeGeneratedProject(sourceDirectory, destinationDirectory);
+
+		expect(await readFile(join(destinationDirectory, "runtime"), "utf8")).toBe("runtime module");
+		expect(
+			JSON.parse(await readFile(join(destinationDirectory, ".cms-generated.json"), "utf8")),
+		).toEqual({ managedPaths: [".cms-generated.json", "runtime"] });
+	});
+
+	it("does not remove product files through an obsolete path's symlink parent", async () => {
+		await using directory = await mkdtempDisposable(
+			join(tmpdir(), "cms-cli-generate-symlink-cleanup-"),
+		);
+		const sourceDirectory = join(directory.path, "source");
+		const destinationDirectory = join(directory.path, ".cms");
+		const productDirectory = join(directory.path, "product");
+		const previousManifest = {
+			managedPaths: [".cms-generated.json", "runtime", "runtime/keep.txt"],
+		};
+
+		await mkdir(join(destinationDirectory, "runtime"), { recursive: true });
+		await mkdir(sourceDirectory, { recursive: true });
+		await mkdir(productDirectory, { recursive: true });
+		await writeFile(
+			join(destinationDirectory, ".cms-generated.json"),
+			JSON.stringify(previousManifest),
+		);
+		await writeFile(join(destinationDirectory, "runtime", "keep.txt"), "old generated file");
+		await writeFile(join(productDirectory, "keep.txt"), "product-owned file");
+		await symlink(productDirectory, join(sourceDirectory, "runtime"), "dir");
+		await writeGenerationManifest(sourceDirectory);
+
+		await synchronizeGeneratedProject(sourceDirectory, destinationDirectory);
+
+		expect((await lstat(join(destinationDirectory, "runtime"))).isSymbolicLink()).toBe(true);
+		expect(await readFile(join(productDirectory, "keep.txt"), "utf8")).toBe("product-owned file");
+	});
+
+	it("rejects a symlinked generated root without modifying its target", async () => {
+		await using directory = await mkdtempDisposable(
+			join(tmpdir(), "cms-cli-generate-symlink-root-"),
+		);
+		const sourceDirectory = join(directory.path, "source");
+		const destinationDirectory = join(directory.path, ".cms");
+		const productDirectory = join(directory.path, "product");
+
+		await mkdir(sourceDirectory, { recursive: true });
+		await mkdir(productDirectory, { recursive: true });
+		const productManifest = {
+			managedPaths: [".cms-generated.json", "keep.txt"],
+		};
+		await writeFile(join(productDirectory, ".cms-generated.json"), JSON.stringify(productManifest));
+		await writeFile(join(productDirectory, "keep.txt"), "product-owned file");
+		await symlink(productDirectory, destinationDirectory, "dir");
+		await writeGenerationManifest(sourceDirectory);
+
+		await expect(
+			synchronizeGeneratedProject(sourceDirectory, destinationDirectory),
+		).rejects.toThrow("Generated project root must be a real directory");
+		expect(await readFile(join(productDirectory, ".cms-generated.json"), "utf8")).toBe(
+			JSON.stringify(productManifest),
+		);
+		expect(await readFile(join(productDirectory, "keep.txt"), "utf8")).toBe("product-owned file");
 	});
 
 	it("leaves the current project intact if generation fails before replacement", async () => {

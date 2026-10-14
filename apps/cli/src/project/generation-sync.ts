@@ -30,6 +30,7 @@ export async function synchronizeGeneratedProject(
 	sourceDirectory: string,
 	destinationDirectory: string,
 ): Promise<void> {
+	await assertSafeDestinationRoot(destinationDirectory);
 	const previousPaths = await readManagedPaths(destinationDirectory);
 	const nextPaths = await readManagedPaths(sourceDirectory);
 	await cleanSynchronizationTemps(destinationDirectory);
@@ -186,9 +187,29 @@ async function synchronizeEntry(source: string, destination: string): Promise<vo
 
 async function removeManagedPath(root: string, relativePath: string): Promise<void> {
 	if (!isSafeRelativePath(relativePath)) return;
-	const path = join(root, ...relativePath.split("/"));
+	const rootInfo = await lstat(root).catch((error: unknown) => {
+		if (hasErrorCode(error, "ENOENT") || hasErrorCode(error, "ENOTDIR")) return undefined;
+		throw error;
+	});
+	if (!rootInfo?.isDirectory() || rootInfo.isSymbolicLink()) return;
+
+	const segments = relativePath.split("/");
+	const finalSegment = segments.pop();
+	if (!finalSegment) return;
+	let parent = root;
+	for (const segment of segments) {
+		parent = join(parent, segment);
+		const parentInfo = await lstat(parent).catch((error: unknown) => {
+			if (hasErrorCode(error, "ENOENT") || hasErrorCode(error, "ENOTDIR")) return undefined;
+			throw error;
+		});
+		if (!parentInfo) return;
+		if (parentInfo.isSymbolicLink()) return;
+		if (!parentInfo.isDirectory()) return;
+	}
+	const path = join(parent, finalSegment);
 	const entry = await lstat(path).catch((error: unknown) => {
-		if (hasErrorCode(error, "ENOENT")) return undefined;
+		if (hasErrorCode(error, "ENOENT") || hasErrorCode(error, "ENOTDIR")) return undefined;
 		throw error;
 	});
 	if (!entry) return;
@@ -199,6 +220,19 @@ async function removeManagedPath(root: string, relativePath: string): Promise<vo
 		return;
 	}
 	await rm(path, { force: true });
+}
+
+async function assertSafeDestinationRoot(root: string): Promise<void> {
+	const entry = await lstat(root).catch((error: unknown) => {
+		if (hasErrorCode(error, "ENOENT")) return undefined;
+		if (hasErrorCode(error, "ENOTDIR")) {
+			throw new Error(`Generated project root is not a directory: ${root}`, { cause: error });
+		}
+		throw error;
+	});
+	if (entry && (!entry.isDirectory() || entry.isSymbolicLink())) {
+		throw new Error(`Generated project root must be a real directory: ${root}`);
+	}
 }
 
 function hasErrorCode(error: unknown, code: string): boolean {
