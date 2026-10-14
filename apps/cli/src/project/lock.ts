@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { access, link, open, readFile, rename, rm } from "node:fs/promises";
+import { access, link, lstat, open, readFile, rename, rm } from "node:fs/promises";
 import type { FileHandle } from "node:fs/promises";
 import { hostname } from "node:os";
 import { join } from "node:path";
@@ -10,21 +10,25 @@ interface LockOwner {
 	token?: string;
 }
 
+interface HeldLock {
+	lockHandle: FileHandle;
+	owner: LockOwner;
+}
+
 export async function withProjectLock<T>(
 	projectRoot: string,
 	operation: () => Promise<T>,
 ): Promise<T> {
 	const lockPath = join(projectRoot, ".cms.lock");
-	const { lockHandle } = await acquireLock(lockPath);
+	const { lockHandle, owner } = await acquireLock(lockPath);
 	try {
 		return await operation();
 	} finally {
-		await lockHandle.close();
-		await rm(lockPath, { force: true });
+		await releaseOwnedLock(lockPath, lockHandle, owner);
 	}
 }
 
-async function acquireLock(lockPath: string): Promise<{ lockHandle: FileHandle }> {
+async function acquireLock(lockPath: string): Promise<HeldLock> {
 	for (let attempt = 0; attempt < 2; attempt += 1) {
 		let lockHandle: FileHandle;
 		try {
@@ -42,10 +46,13 @@ async function acquireLock(lockPath: string): Promise<{ lockHandle: FileHandle }
 		};
 		try {
 			await lockHandle.writeFile(`${JSON.stringify(owner)}\n`);
-			return { lockHandle };
+			return { lockHandle, owner };
 		} catch (error) {
-			await lockHandle.close();
-			await rm(lockPath, { force: true });
+			try {
+				await removeLockOwnedByHandle(lockPath, lockHandle);
+			} finally {
+				await lockHandle.close();
+			}
 			throw error;
 		}
 	}
@@ -53,37 +60,78 @@ async function acquireLock(lockPath: string): Promise<{ lockHandle: FileHandle }
 }
 
 async function recoverStaleLock(lockPath: string): Promise<boolean> {
-	const owner = await readLockOwner(lockPath);
-	if (!owner) {
+	const guardPath = `${lockPath}.recovery`;
+	const guardOwner: LockOwner = {
+		pid: process.pid,
+		hostname: hostname(),
+		token: randomUUID(),
+	};
+	let guardHandle: FileHandle;
+	try {
+		guardHandle = await open(guardPath, "wx");
+	} catch (error) {
+		if (hasErrorCode(error, "EEXIST")) {
+			throw new Error(
+				`CMS lock recovery is already running or was interrupted. Inspect ${guardPath}; if no recovery is running, remove this guard manually before retrying.`,
+				{ cause: error },
+			);
+		}
+		throw error;
+	}
+	try {
+		await guardHandle.writeFile(`${JSON.stringify(guardOwner)}\n`);
+	} catch (error) {
 		try {
-			await access(lockPath);
-			return false;
+			await removeLockOwnedByHandle(guardPath, guardHandle);
+		} finally {
+			await guardHandle.close();
+		}
+		throw error;
+	}
+
+	try {
+		const owner = await readLockOwner(lockPath);
+		if (!owner) return await isMissing(lockPath);
+		if (owner.hostname !== hostname() || isProcessAlive(owner.pid)) return false;
+
+		const recoveryPath = `${lockPath}.stale-${randomUUID()}`;
+		try {
+			await rename(lockPath, recoveryPath);
 		} catch (error) {
 			if (hasErrorCode(error, "ENOENT")) return true;
 			throw error;
 		}
-	}
-	if (owner.hostname !== hostname() || isProcessAlive(owner.pid)) return false;
 
-	const recoveryPath = `${lockPath}.stale-${randomUUID()}`;
-	try {
-		await rename(lockPath, recoveryPath);
-	} catch (error) {
-		if (hasErrorCode(error, "ENOENT")) return true;
-		throw error;
-	}
+		let recoveredOwner: LockOwner | undefined;
+		try {
+			recoveredOwner = await readLockOwner(recoveryPath);
+		} catch (error) {
+			await restoreRecoveredLock(recoveryPath, lockPath);
+			throw error;
+		}
+		if (
+			recoveredOwner &&
+			areSameOwners(owner, recoveredOwner) &&
+			recoveredOwner.hostname === hostname() &&
+			!isProcessAlive(recoveredOwner.pid)
+		) {
+			try {
+				await rm(recoveryPath, { force: true });
+				return true;
+			} catch (error) {
+				await restoreRecoveredLock(recoveryPath, lockPath);
+				throw error;
+			}
+		}
 
-	const recoveredOwner = await readLockOwner(recoveryPath);
-	if (
-		recoveredOwner &&
-		areSameOwners(owner, recoveredOwner) &&
-		recoveredOwner.hostname === hostname() &&
-		!isProcessAlive(recoveredOwner.pid)
-	) {
-		await rm(recoveryPath, { force: true });
-		return true;
+		await restoreRecoveredLock(recoveryPath, lockPath);
+		return false;
+	} finally {
+		await releaseOwnedLock(guardPath, guardHandle, guardOwner);
 	}
+}
 
+async function restoreRecoveredLock(recoveryPath: string, lockPath: string): Promise<void> {
 	try {
 		await link(recoveryPath, lockPath);
 		await rm(recoveryPath, { force: true });
@@ -91,11 +139,65 @@ async function recoverStaleLock(lockPath: string): Promise<boolean> {
 		if (hasErrorCode(error, "EEXIST")) {
 			throw new Error(
 				`The CMS lock changed during recovery. Inspect ${lockPath} and ${recoveryPath} before retrying.`,
+				{ cause: error },
 			);
 		}
 		throw error;
 	}
-	return false;
+}
+
+async function isMissing(path: string): Promise<boolean> {
+	try {
+		await access(path);
+		return false;
+	} catch (error) {
+		if (hasErrorCode(error, "ENOENT")) return true;
+		throw error;
+	}
+}
+
+async function releaseOwnedLock(
+	lockPath: string,
+	lockHandle: FileHandle,
+	owner: LockOwner,
+): Promise<void> {
+	try {
+		await removeLockOwnedByHandle(lockPath, lockHandle, owner);
+	} finally {
+		await lockHandle.close();
+	}
+}
+
+async function removeLockOwnedByHandle(
+	lockPath: string,
+	lockHandle: FileHandle,
+	expectedOwner?: LockOwner,
+): Promise<void> {
+	const handleInfo = await lockHandle.stat();
+	const pathInfo = await lstat(lockPath).catch((error: unknown) => {
+		if (hasErrorCode(error, "ENOENT")) return undefined;
+		throw error;
+	});
+	if (!pathInfo || !areSameFiles(pathInfo, handleInfo)) return;
+
+	if (expectedOwner) {
+		const pathOwner = await readLockOwner(lockPath);
+		if (!pathOwner || !areSameOwners(expectedOwner, pathOwner)) return;
+	}
+
+	const currentPathInfo = await lstat(lockPath).catch((error: unknown) => {
+		if (hasErrorCode(error, "ENOENT")) return undefined;
+		throw error;
+	});
+	if (!currentPathInfo || !areSameFiles(currentPathInfo, handleInfo)) return;
+	await rm(lockPath, { force: true });
+}
+
+function areSameFiles(
+	left: { dev: number; ino: number },
+	right: { dev: number; ino: number },
+): boolean {
+	return left.dev === right.dev && left.ino === right.ino;
 }
 
 async function readLockOwner(lockPath: string): Promise<LockOwner | undefined> {

@@ -1,6 +1,14 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+	access,
+	mkdtemp,
+	mkdtempDisposable,
+	readFile,
+	rename,
+	rm,
+	writeFile,
+} from "node:fs/promises";
 import { hostname } from "node:os";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -81,5 +89,60 @@ describe("consumer project lock", () => {
 		} finally {
 			await rm(projectRoot, { recursive: true, force: true });
 		}
+	});
+
+	it("does not remove a replacement lock when the previous owner exits", async () => {
+		await using directory = await mkdtempDisposable(join(tmpdir(), "cms-cli-lock-replaced-"));
+		const lockPath = join(directory.path, ".cms.lock");
+		const originalLockPath = `${lockPath}.original`;
+		const replacement = { contents: "" };
+
+		await withProjectLock(directory.path, async () => {
+			replacement.contents = await readFile(lockPath, "utf8");
+			await rename(lockPath, originalLockPath);
+			await writeFile(lockPath, replacement.contents);
+		});
+
+		expect(await readFile(lockPath, "utf8")).toBe(replacement.contents);
+	});
+
+	it("does not remove a changed owner record on the same lock file", async () => {
+		await using directory = await mkdtempDisposable(join(tmpdir(), "cms-cli-lock-owner-change-"));
+		const lockPath = join(directory.path, ".cms.lock");
+		const replacementContents = `${JSON.stringify({
+			pid: process.pid,
+			hostname: hostname(),
+			token: "replacement-owner",
+		})}\n`;
+
+		await withProjectLock(directory.path, async () => {
+			await writeFile(lockPath, replacementContents);
+		});
+
+		expect(await readFile(lockPath, "utf8")).toBe(replacementContents);
+	});
+
+	it("leaves an interrupted recovery guard for manual inspection", async () => {
+		await using directory = await mkdtempDisposable(join(tmpdir(), "cms-cli-lock-guard-"));
+		const lockPath = join(directory.path, ".cms.lock");
+		const recoveryGuardPath = `${lockPath}.recovery`;
+		const lockContents = `${JSON.stringify({
+			pid: process.pid,
+			hostname: hostname(),
+			token: "interrupted-command",
+		})}\n`;
+		const guardContents = `${JSON.stringify({
+			pid: process.pid,
+			hostname: hostname(),
+			token: "interrupted-recovery",
+		})}\n`;
+		await writeFile(lockPath, lockContents);
+		await writeFile(recoveryGuardPath, guardContents);
+
+		await expect(withProjectLock(directory.path, async () => undefined)).rejects.toThrow(
+			"remove this guard manually before retrying",
+		);
+		expect(await readFile(lockPath, "utf8")).toBe(lockContents);
+		expect(await readFile(recoveryGuardPath, "utf8")).toBe(guardContents);
 	});
 });
