@@ -1,9 +1,13 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
+import { mkdtempDisposable, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { prerelease, valid } from "semver";
+
+import { collectProductReleaseNotes } from "./product-release-notes.ts";
 
 type ProductReleaseAction = "skip" | "create" | "upload" | "publish";
 
@@ -29,6 +33,7 @@ interface GitHubCliResult {
 interface PublishProductReleaseOptions {
 	version: string;
 	assetPath: string;
+	releaseNotes: string;
 	githubSha: string | undefined;
 	runGh: (arguments_: string[]) => GitHubCliResult;
 }
@@ -92,12 +97,16 @@ export function planProductRelease(
 	);
 }
 
-export function publishProductRelease({
+export async function publishProductRelease({
 	version,
 	assetPath,
+	releaseNotes,
 	githubSha,
 	runGh,
-}: PublishProductReleaseOptions): "published" | "skipped" {
+}: PublishProductReleaseOptions): Promise<"published" | "skipped"> {
+	if (!releaseNotes.trim()) {
+		throw new Error(`Generated Changesets release notes are missing for ${version}.`);
+	}
 	const assetName = `repo-cli-${version}.tgz`;
 	let plan = planProductRelease(version, undefined, assetName);
 	if (plan.action === "skip") return "skipped";
@@ -129,6 +138,9 @@ export function publishProductRelease({
 	}
 
 	if (plan.action === "create") {
+		await using notesDirectory = await mkdtempDisposable(join(tmpdir(), "cms-release-notes-"));
+		const notesFile = join(notesDirectory.path, "release-notes.md");
+		await writeFile(notesFile, `${releaseNotes.trim()}\n`);
 		const createArguments = [
 			"release",
 			"create",
@@ -138,8 +150,8 @@ export function publishProductRelease({
 			githubSha,
 			"--title",
 			`CMS CLI ${version}`,
-			"--notes",
-			"CMS CLI product tarballを配布します。",
+			"--notes-file",
+			notesFile,
 		];
 		if (plan.prerelease) createArguments.push("--prerelease");
 		runGhSuccessfully(runGh, createArguments);
@@ -250,6 +262,21 @@ function readProductVersion(): string {
 	return version;
 }
 
+function readProductReleaseNotes(version: string): string {
+	const changelogs = packageManifests.map(({ name, relativePath }) => {
+		const changelogPath = join(dirname(join(repositoryRoot, relativePath)), "CHANGELOG.md");
+		if (!existsSync(changelogPath)) {
+			throw new Error(`Generated Changesets changelog is missing for ${name}.`);
+		}
+		return readFileSync(changelogPath, "utf8");
+	});
+	const releaseNotes = collectProductReleaseNotes(version, changelogs);
+	if (!releaseNotes) {
+		throw new Error(`Generated Changesets release notes are missing for ${version}.`);
+	}
+	return releaseNotes;
+}
+
 function runGh(arguments_: string[]): GitHubCliResult {
 	const result = spawnSync("gh", arguments_, {
 		cwd: repositoryRoot,
@@ -271,6 +298,7 @@ async function main(): Promise<void> {
 		console.log("Skipping product release for the unpublished 0.0.0 development version.");
 		return;
 	}
+	const releaseNotes = readProductReleaseNotes(version);
 
 	const releaseRegistryPath = new URL("../dist/migration/release-registry.js", import.meta.url);
 	const releaseRegistryModule: unknown = await import(releaseRegistryPath.href);
@@ -287,9 +315,10 @@ async function main(): Promise<void> {
 		throw new Error(`Unexpected product archive name: ${assetPath}`);
 	}
 
-	const result = publishProductRelease({
+	const result = await publishProductRelease({
 		assetPath,
 		githubSha: process.env.GITHUB_SHA,
+		releaseNotes,
 		runGh,
 		version,
 	});

@@ -1,6 +1,6 @@
 {
 	"$schema": "../node_modules/@changesets/config/schema.json",
-	"changelog": false,
+	"changelog": "@changesets/cli/changelog",
 	"commit": false,
 	"fixed": [["@repo/cli", "@repo/web", "@repo/api", "@repo/core", "@repo/editor", "@repo/config"]],
 	"linked": [],

@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { copyFile, mkdir, mkdtempDisposable, realpath, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -24,6 +25,7 @@ interface GitHubCliResult {
 const version = "0.1.0-alpha.0";
 const assetName = `repo-cli-${version}.tgz`;
 const githubSha = "1234567890abcdef1234567890abcdef12345678";
+const releaseNotes = "### Minor Changes\n\n- Initial CMS product release.";
 
 function createReleaseState(options: Partial<ReleaseState> = {}): ReleaseState {
 	return {
@@ -37,6 +39,7 @@ function createReleaseState(options: Partial<ReleaseState> = {}): ReleaseState {
 
 function createGhRunner(initialRelease: ReleaseState | undefined) {
 	let release = initialRelease;
+	let createdReleaseNotes: string | undefined;
 	const calls: string[][] = [];
 	function runGh(arguments_: string[]): GitHubCliResult {
 		calls.push(arguments_);
@@ -56,6 +59,12 @@ function createGhRunner(initialRelease: ReleaseState | undefined) {
 				: { status: 1, stderr: "release not found", stdout: "" };
 		}
 		if (command === "release" && action === "create") {
+			const notesFileIndex = arguments_.indexOf("--notes-file");
+			const notesFile = arguments_[notesFileIndex + 1];
+			if (notesFileIndex < 0 || !notesFile) {
+				throw new Error("Release creation must receive generated notes from a file.");
+			}
+			createdReleaseNotes = readFileSync(notesFile, "utf8");
 			release = createReleaseState({
 				isDraft: true,
 				isPrerelease: arguments_.includes("--prerelease"),
@@ -78,7 +87,10 @@ function createGhRunner(initialRelease: ReleaseState | undefined) {
 	function getRelease(): ReleaseState | undefined {
 		return release;
 	}
-	return { calls, getRelease, runGh };
+	function getCreatedReleaseNotes(): string | undefined {
+		return createdReleaseNotes;
+	}
+	return { calls, getCreatedReleaseNotes, getRelease, runGh };
 }
 
 function getCall(calls: string[][], index: number): string[] {
@@ -104,11 +116,12 @@ describe("product release decisions", () => {
 		});
 	});
 
-	it("creates a prerelease, uploads the product archive, then publishes it", () => {
+	it("creates a prerelease with generated notes, uploads the product archive, then publishes it", async () => {
 		const gh = createGhRunner(undefined);
-		const result = publishProductRelease({
+		const result = await publishProductRelease({
 			assetPath: `/tmp/${assetName}`,
 			githubSha,
+			releaseNotes,
 			runGh: gh.runGh,
 			version,
 		});
@@ -126,15 +139,18 @@ describe("product release decisions", () => {
 		const createCall = getCall(gh.calls, 1);
 		expect(createCall).toContain("--prerelease");
 		expect(createCall[createCall.indexOf("--target") + 1]).toBe(githubSha);
+		expect(createCall).toContain("--notes-file");
+		expect(gh.getCreatedReleaseNotes()).toBe(`${releaseNotes}\n`);
 		expect(getCall(gh.calls, 2)).toEqual(["release", "upload", `v${version}`, `/tmp/${assetName}`]);
 		expect(getCall(gh.calls, 3)).toEqual(["release", "edit", `v${version}`, "--draft=false"]);
 	});
 
-	it("recovers a draft with a missing asset without replacing an existing release", () => {
+	it("recovers a draft with a missing asset without replacing an existing release", async () => {
 		const gh = createGhRunner(createReleaseState({ assets: [], isDraft: true }));
-		const result = publishProductRelease({
+		const result = await publishProductRelease({
 			assetPath: `/tmp/${assetName}`,
 			githubSha,
+			releaseNotes,
 			runGh: gh.runGh,
 			version,
 		});
@@ -144,28 +160,30 @@ describe("product release decisions", () => {
 		expect(gh.getRelease()?.assets).toEqual([assetName]);
 	});
 
-	it("refuses to publish a draft created from a different commit", () => {
+	it("refuses to publish a draft created from a different commit", async () => {
 		const differentCommit = "abcdef0123456789abcdef0123456789abcdef01";
 		const gh = createGhRunner(
 			createReleaseState({ assets: [], isDraft: true, targetCommitish: differentCommit }),
 		);
 
-		expect(() =>
+		await expect(
 			publishProductRelease({
 				assetPath: `/tmp/${assetName}`,
 				githubSha,
+				releaseNotes,
 				runGh: gh.runGh,
 				version,
 			}),
-		).toThrow(`Draft GitHub Release v${version} targets ${differentCommit}`);
+		).rejects.toThrow(`Draft GitHub Release v${version} targets ${differentCommit}`);
 		expect(gh.calls.map((call) => call[1])).toEqual(["view"]);
 	});
 
-	it("skips a published release that already has its archive", () => {
+	it("skips a published release that already has its archive", async () => {
 		const gh = createGhRunner(createReleaseState({ assets: [assetName] }));
-		const result = publishProductRelease({
+		const result = await publishProductRelease({
 			assetPath: `/tmp/${assetName}`,
 			githubSha,
+			releaseNotes,
 			runGh: gh.runGh,
 			version,
 		});
@@ -174,18 +192,34 @@ describe("product release decisions", () => {
 		expect(gh.calls.map((call) => call[1])).toEqual(["view"]);
 	});
 
-	it("fails closed when a published release is missing its archive", () => {
+	it("fails closed when a published release is missing its archive", async () => {
 		const gh = createGhRunner(createReleaseState({ assets: [] }));
 
-		expect(() =>
+		await expect(
 			publishProductRelease({
 				assetPath: `/tmp/${assetName}`,
 				githubSha,
+				releaseNotes,
 				runGh: gh.runGh,
 				version,
 			}),
-		).toThrow(`Published GitHub Release v${version} is missing ${assetName}`);
+		).rejects.toThrow(`Published GitHub Release v${version} is missing ${assetName}`);
 		expect(gh.calls.map((call) => call[1])).toEqual(["view"]);
+	});
+
+	it("fails before contacting GitHub when generated release notes are empty", async () => {
+		const gh = createGhRunner(undefined);
+
+		await expect(
+			publishProductRelease({
+				assetPath: `/tmp/${assetName}`,
+				githubSha,
+				releaseNotes: " \n",
+				runGh: gh.runGh,
+				version,
+			}),
+		).rejects.toThrow(`Generated Changesets release notes are missing for ${version}`);
+		expect(gh.calls).toEqual([]);
 	});
 
 	it("rejects a prerelease flag that disagrees with SemVer", () => {
@@ -206,6 +240,10 @@ describe("product release decisions", () => {
 		);
 		const entryPoint = join(fixtureScripts, "publish-product-release.ts");
 		await copyFile(new URL("./publish-product-release.ts", import.meta.url), entryPoint);
+		await copyFile(
+			new URL("./product-release-notes.ts", import.meta.url),
+			join(fixtureScripts, "product-release-notes.ts"),
+		);
 
 		const manifests = [
 			{ name: "@repo/cli", relativePath: "apps/cli/package.json" },

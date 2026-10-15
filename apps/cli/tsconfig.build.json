@@ -4,6 +4,7 @@
 		"noEmit": false,
 		"rootDir": "src",
 		"outDir": "dist",
+		"allowImportingTsExtensions": false,
 		"declaration": true,
 		"declarationMap": false,
 		"allowJs": false,

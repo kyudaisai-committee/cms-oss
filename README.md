@@ -25,7 +25,7 @@ Waku のアプリ本体、Worker entry、開発用 Wrangler 設定と deploy は
 
 ## バージョン管理
 
-6つの `@repo/*` package は Changesets の fixed group で同じ SemVer に揃えます。package は private のまま version を管理し、Changesets は npm tag や changelog を作成しません。changeset を追加・確認して version を更新するには、次を実行します。
+6つの `@repo/*` package は Changesets の fixed group で同じ SemVer に揃えます。package は private な内部実装で、独立した package release は行いません。Changesets は version PR に各 package の `CHANGELOG.md` を生成し、GitHub Release では対象versionの製品変更を1つのノートにまとめます。製品tarballには全履歴を `changelogs/{cli,web,api,core,editor,config}.md` として収録します。利用側は製品を更新した後、DB変更が記載されたchangelogを確認してから、自身のDB migrationを準備・適用してください。changeset を追加・確認して version を更新するには、次を実行します。
 
 ```sh
 pnpm changeset
@@ -36,6 +36,8 @@ pnpm changeset:version
 初回変更は minor changeset で、alpha prerelease mode を有効にしているため、6 package は `0.0.0` から `0.1.0-alpha.0` になります。`changeset:version` は package version を更新し、pnpm lockfile を再生成します。新しい prerelease cycle は `pnpm changeset pre enter alpha` で開始し、終了時に `pnpm changeset pre exit` を実行します。
 
 main への push を契機に、GitHub Actions が Changesets の version PR を作成または更新します。その PR の merge 後は、全 workspace の検証と製品 CLI の pack を行い、`v<version>` GitHub Release を作成して `repo-cli-<version>.tgz` を添付します。SemVer prerelease は GitHub の pre-release として公開し、npm registry へは publish しません。未公開の `0.0.0` は skip し、同じ version の Release と asset が既にあれば何も変更しません。公開済み Release の asset が欠けている場合は workflow を失敗させ、既存 Release を置き換えません。
+
+DBに影響するchangesetには、対象version、変更前後のschema、データ変換・既定値・重複や欠損値の扱い、保持・削除されるID/関係/値、適用順序と適用を省略できる条件、適用後の確認方法を記載します。生成された詳細は各packageの `CHANGELOG.md` と製品tarball内の `changelogs/` に残します。GitHub Releaseのノートには対象versionの説明を載せ、package名の見出しは追加しません。
 
 version PR の自動作成には、repository settings の `Actions > General > Allow GitHub Actions to create and approve pull requests` を有効にする必要があります。workflow は必要な `contents` と `pull-requests` 権限を指定します。
 
