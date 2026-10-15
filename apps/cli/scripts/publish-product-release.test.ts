@@ -6,27 +6,42 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { planProductRelease, publishProductRelease } from "./publish-product-release.mjs";
+import { planProductRelease, publishProductRelease } from "./publish-product-release.js";
+
+interface ReleaseState {
+	assets: string[];
+	isDraft: boolean;
+	isPrerelease: boolean;
+	targetCommitish: string | undefined;
+}
+
+interface GitHubCliResult {
+	status: number;
+	stderr: string;
+	stdout: string;
+}
 
 const version = "0.1.0-alpha.0";
 const assetName = `repo-cli-${version}.tgz`;
 const githubSha = "1234567890abcdef1234567890abcdef12345678";
 
-function createReleaseState({
-	assets = [],
-	isDraft = false,
-	isPrerelease = true,
-	targetCommitish = githubSha,
-} = {}) {
-	return { assets, isDraft, isPrerelease, targetCommitish };
+function createReleaseState(options: Partial<ReleaseState> = {}): ReleaseState {
+	return {
+		assets: [],
+		isDraft: false,
+		isPrerelease: true,
+		targetCommitish: githubSha,
+		...options,
+	};
 }
 
-function createGhRunner(initialRelease) {
+function createGhRunner(initialRelease: ReleaseState | undefined) {
 	let release = initialRelease;
-	const calls = [];
-	function runGh(arguments_) {
+	const calls: string[][] = [];
+	function runGh(arguments_: string[]): GitHubCliResult {
 		calls.push(arguments_);
-		if (arguments_[0] === "release" && arguments_[1] === "view") {
+		const [command, action] = arguments_;
+		if (command === "release" && action === "view") {
 			return release
 				? {
 						status: 0,
@@ -40,7 +55,7 @@ function createGhRunner(initialRelease) {
 					}
 				: { status: 1, stderr: "release not found", stdout: "" };
 		}
-		if (arguments_[0] === "release" && arguments_[1] === "create") {
+		if (command === "release" && action === "create") {
 			release = createReleaseState({
 				isDraft: true,
 				isPrerelease: arguments_.includes("--prerelease"),
@@ -48,17 +63,28 @@ function createGhRunner(initialRelease) {
 			});
 			return { status: 0, stderr: "", stdout: "" };
 		}
-		if (arguments_[0] === "release" && arguments_[1] === "upload") {
+		if (command === "release" && action === "upload") {
+			if (!release) throw new Error("A release must exist before uploading an asset.");
 			release.assets.push(assetName);
 			return { status: 0, stderr: "", stdout: "" };
 		}
-		if (arguments_[0] === "release" && arguments_[1] === "edit") {
+		if (command === "release" && action === "edit") {
+			if (!release) throw new Error("A release must exist before publishing it.");
 			release.isDraft = false;
 			return { status: 0, stderr: "", stdout: "" };
 		}
 		throw new Error(`Unexpected gh call: ${arguments_.join(" ")}`);
 	}
-	return { calls, getRelease: () => release, runGh };
+	function getRelease(): ReleaseState | undefined {
+		return release;
+	}
+	return { calls, getRelease, runGh };
+}
+
+function getCall(calls: string[][], index: number): string[] {
+	const call = calls[index];
+	if (!call) throw new Error(`Expected GitHub CLI call at index ${index}.`);
+	return call;
 }
 
 describe("product release decisions", () => {
@@ -90,17 +116,18 @@ describe("product release decisions", () => {
 		expect(result).toBe("published");
 		expect(gh.getRelease()).toEqual(createReleaseState({ assets: [assetName], isDraft: false }));
 		expect(gh.calls.map((call) => call[1])).toEqual(["view", "create", "upload", "edit"]);
-		expect(gh.calls[0]).toEqual([
+		expect(getCall(gh.calls, 0)).toEqual([
 			"release",
 			"view",
 			`v${version}`,
 			"--json",
 			"assets,isDraft,isPrerelease,targetCommitish",
 		]);
-		expect(gh.calls[1]).toContain("--prerelease");
-		expect(gh.calls[1][gh.calls[1].indexOf("--target") + 1]).toBe(githubSha);
-		expect(gh.calls[2]).toEqual(["release", "upload", `v${version}`, `/tmp/${assetName}`]);
-		expect(gh.calls[3]).toEqual(["release", "edit", `v${version}`, "--draft=false"]);
+		const createCall = getCall(gh.calls, 1);
+		expect(createCall).toContain("--prerelease");
+		expect(createCall[createCall.indexOf("--target") + 1]).toBe(githubSha);
+		expect(getCall(gh.calls, 2)).toEqual(["release", "upload", `v${version}`, `/tmp/${assetName}`]);
+		expect(getCall(gh.calls, 3)).toEqual(["release", "edit", `v${version}`, "--draft=false"]);
 	});
 
 	it("recovers a draft with a missing asset without replacing an existing release", () => {
@@ -114,16 +141,13 @@ describe("product release decisions", () => {
 
 		expect(result).toBe("published");
 		expect(gh.calls.map((call) => call[1])).toEqual(["view", "upload", "edit"]);
-		expect(gh.getRelease().assets).toEqual([assetName]);
+		expect(gh.getRelease()?.assets).toEqual([assetName]);
 	});
 
 	it("refuses to publish a draft created from a different commit", () => {
+		const differentCommit = "abcdef0123456789abcdef0123456789abcdef01";
 		const gh = createGhRunner(
-			createReleaseState({
-				assets: [],
-				isDraft: true,
-				targetCommitish: "abcdef0123456789abcdef0123456789abcdef01",
-			}),
+			createReleaseState({ assets: [], isDraft: true, targetCommitish: differentCommit }),
 		);
 
 		expect(() =>
@@ -133,7 +157,7 @@ describe("product release decisions", () => {
 				runGh: gh.runGh,
 				version,
 			}),
-		).toThrow(`Draft GitHub Release v${version} targets abcdef0123456789abcdef0123456789abcdef01`);
+		).toThrow(`Draft GitHub Release v${version} targets ${differentCommit}`);
 		expect(gh.calls.map((call) => call[1])).toEqual(["view"]);
 	});
 
@@ -180,21 +204,24 @@ describe("product release decisions", () => {
 			join(fixtureCli, "node_modules"),
 			"dir",
 		);
-		const entryPoint = join(fixtureScripts, "publish-product-release.mjs");
-		await copyFile(new URL("./publish-product-release.mjs", import.meta.url), entryPoint);
+		const entryPoint = join(fixtureScripts, "publish-product-release.ts");
+		await copyFile(new URL("./publish-product-release.ts", import.meta.url), entryPoint);
 
 		const manifests = [
-			["@repo/cli", "apps/cli/package.json"],
-			["@repo/web", "apps/web/package.json"],
-			["@repo/api", "packages/api/package.json"],
-			["@repo/core", "packages/core/package.json"],
-			["@repo/editor", "packages/editor/package.json"],
-			["@repo/config", "packages/config/package.json"],
+			{ name: "@repo/cli", relativePath: "apps/cli/package.json" },
+			{ name: "@repo/web", relativePath: "apps/web/package.json" },
+			{ name: "@repo/api", relativePath: "packages/api/package.json" },
+			{ name: "@repo/core", relativePath: "packages/core/package.json" },
+			{ name: "@repo/editor", relativePath: "packages/editor/package.json" },
+			{ name: "@repo/config", relativePath: "packages/config/package.json" },
 		];
-		for (const [name, relativePath] of manifests) {
+		for (const { name, relativePath } of manifests) {
 			const manifestPath = join(fixture.path, relativePath);
 			await mkdir(dirname(manifestPath), { recursive: true });
-			await writeFile(manifestPath, JSON.stringify({ name, private: true, version: "0.0.0" }));
+			await writeFile(
+				manifestPath,
+				JSON.stringify({ name, private: true, type: "module", version: "0.0.0" }),
+			);
 		}
 
 		const result = spawnSync(process.execPath, [await realpath(entryPoint)], {
