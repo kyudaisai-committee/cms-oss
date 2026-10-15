@@ -16,7 +16,7 @@ jobs:
     name: Version packages
     runs-on: ubuntu-latest
     outputs:
-      pr_number: ${{ steps.changesets.outputs['pr-number'] }}
+      mode: ${{ steps.mode.outputs.mode }}
     permissions:
       contents: write
       pull-requests: write
@@ -29,8 +29,12 @@ jobs:
         uses: pnpm/action-setup@v4
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Select release mode
+        id: mode
+        uses: changesets/action/select-mode@v2
       - name: Create or update version pull request
         id: changesets
+        if: steps.mode.outputs.mode == 'version'
         uses: changesets/action/version@v2
         with:
           pr-base-branch: main
@@ -42,7 +46,7 @@ jobs:
     name: Build and publish product Release
     runs-on: ubuntu-latest
     needs: version
-    if: needs.version.outputs.pr_number == ''
+    if: needs.version.outputs.mode == 'none' || needs.version.outputs.mode == 'publish'
     permissions:
       contents: write
     steps:
