@@ -59,4 +59,4 @@ jobs:
       - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node apps/cli/scripts/publish-product-release.mjs dist/release
+        run: pnpm exec node apps/cli/scripts/publish-product-release.mjs dist/release
