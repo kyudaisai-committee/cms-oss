@@ -7,4 +7,4 @@
 "@repo/config": minor
 ---
 
-初回のCMS製品群とバージョン管理を導入します。
+利用側プロジェクトの初期化・開発・build・deployを行うCLIと設定、DB migration支援、Waku管理画面、API、Markdown editorを初回のCMS製品としてまとめます。6つのpackage versionをfixed groupで揃え、Changesetsでalphaを管理します。
