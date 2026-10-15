@@ -24,9 +24,8 @@
 		}
 	},
 	"scripts": {
-		"build": "tsc -p tsconfig.json",
-		"typecheck": "pnpm run typecheck:config && tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.scripts.json",
-		"typecheck:config": "tsc --ignoreConfig --allowJs --checkJs --noEmit --strict --module nodenext --moduleResolution nodenext --skipLibCheck oclif.config.mjs",
+		"build": "tsc -p tsconfig.build.json",
+		"typecheck": "tsc -p tsconfig.json",
 		"test": "vitest run"
 	},
 	"dependencies": {

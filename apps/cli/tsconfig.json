@@ -1,15 +1,14 @@
 {
 	"extends": "../../tsconfig.json",
 	"compilerOptions": {
-		"noEmit": false,
+		"noEmit": true,
 		"target": "ES2022",
 		"module": "NodeNext",
 		"moduleResolution": "NodeNext",
-		"rootDir": "src",
-		"outDir": "dist",
-		"declaration": true,
-		"declarationMap": false,
-		"types": ["node"]
+		"rootDir": ".",
+		"types": ["node"],
+		"allowJs": true,
+		"checkJs": true
 	},
-	"include": ["src/**/*.ts"]
+	"include": ["src/**/*.ts", "scripts/**/*.ts", "oclif.config.mjs"]
 }
