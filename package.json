@@ -6,7 +6,7 @@
 	"scripts": {
 		"changeset": "changeset",
 		"changeset:status": "changeset status",
-		"changeset:version": "changeset version && pnpm install --lockfile-only",
+		"changeset:version": "changeset version && pnpm install --lockfile-only && pnpm format",
 		"typecheck": "pnpm run typecheck:scripts && pnpm -r typecheck",
 		"typecheck:scripts": "tsc --noEmit -p tsconfig.scripts.json",
 		"verify": "pnpm run check && pnpm run typecheck && pnpm -r test && pnpm -r build",
