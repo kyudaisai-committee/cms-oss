@@ -8,6 +8,7 @@
 		"esModuleInterop": true,
 		"module": "esnext",
 		"moduleResolution": "bundler",
+		"rewriteRelativeImportExtensions": true,
 		"skipLibCheck": true,
 		"noUncheckedIndexedAccess": true,
 		"exactOptionalPropertyTypes": true,

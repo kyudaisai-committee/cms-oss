@@ -1,6 +1,6 @@
 {
 	"name": "@repo/cli",
-	"version": "0.1.0",
+	"version": "0.0.0",
 	"private": true,
 	"bin": {
 		"cms": "./bin/run.js"
@@ -24,9 +24,8 @@
 		}
 	},
 	"scripts": {
-		"build": "tsc -p tsconfig.json",
-		"typecheck": "pnpm run typecheck:config && tsc --noEmit -p tsconfig.json",
-		"typecheck:config": "tsc --ignoreConfig --allowJs --checkJs --noEmit --strict --module nodenext --moduleResolution nodenext --skipLibCheck oclif.config.mjs",
+		"build": "tsc -p tsconfig.build.json",
+		"typecheck": "tsc --noEmit -p tsconfig.json",
 		"test": "vitest run"
 	},
 	"dependencies": {
@@ -35,10 +34,13 @@
 		"@repo/core": "workspace:*",
 		"drizzle-kit": "^0.31.11",
 		"jiti": "^2.7.0",
+		"semver": "^7.8.5",
 		"wrangler": "^4.149.0"
 	},
 	"devDependencies": {
 		"@types/node": "^26.6.5",
+		"@types/semver": "^7.8.0",
+		"mdast-util-from-markdown": "^2.1.0",
 		"typescript": "^7.0.2",
 		"vitest": "^5.0.3"
 	}

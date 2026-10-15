@@ -3,12 +3,18 @@ import { join } from "node:path";
 
 const testDirectoryNames = new Set(["test", "tests"]);
 
-export async function copyPackageAssets(sourceDirectory, outputDirectory) {
+export async function copyPackageAssets(
+	sourceDirectory: string,
+	outputDirectory: string,
+): Promise<void> {
 	await removeTestArtifacts(sourceDirectory, outputDirectory);
 	await copyRuntimeAssets(sourceDirectory, outputDirectory);
 }
 
-async function removeTestArtifacts(sourceDirectory, outputDirectory) {
+async function removeTestArtifacts(
+	sourceDirectory: string,
+	outputDirectory: string,
+): Promise<void> {
 	for (const entry of await readdir(sourceDirectory, { withFileTypes: true })) {
 		const sourcePath = join(sourceDirectory, entry.name);
 		const outputPath = join(outputDirectory, entry.name.replace(/\.tsx?$/, ".js"));
@@ -24,7 +30,7 @@ async function removeTestArtifacts(sourceDirectory, outputDirectory) {
 	}
 }
 
-async function copyRuntimeAssets(sourceDirectory, outputDirectory) {
+async function copyRuntimeAssets(sourceDirectory: string, outputDirectory: string): Promise<void> {
 	for (const entry of await readdir(sourceDirectory, { withFileTypes: true })) {
 		if (
 			testDirectoryNames.has(entry.name) ||

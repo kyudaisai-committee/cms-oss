@@ -23,6 +23,26 @@ Waku のアプリ本体、Worker entry、開発用 Wrangler 設定と deploy は
 
 `pnpm verify` は formatter、lint、全 package の TypeScript 検査・Vitest、Waku build を順番に実行します。リポジトリ内の Worker deploy は Cloudflare リソースを用意し、`apps/web/wrangler.toml` の例示値を置き換えた後に `pnpm --filter @repo/web run deploy` で実行します。利用側からは CMS CLI の `cms deploy` を使えます。どちらも Worker の build/deploy のみを行い、DB migration は適用しません。
 
+## バージョン管理
+
+6つの `@repo/*` package は Changesets の fixed group で同じ SemVer に揃えます。package は private な内部実装で、独立した package release は行いません。Changesets は version PR に各 package の `CHANGELOG.md` を生成し、GitHub Release では対象versionの製品変更を1つのノートにまとめます。製品tarballには全履歴を `changelogs/{cli,web,api,core,editor,config}.md` として収録します。利用側は製品を更新した後、DB変更が記載されたchangelogを確認してから、自身のDB migrationを準備・適用してください。changeset を追加・確認して version を更新するには、次を実行します。
+
+```sh
+pnpm changeset
+pnpm changeset:status
+pnpm changeset:version
+```
+
+初回変更は minor changeset で、alpha prerelease mode を有効にしているため、6 package は `0.0.0` から `0.1.0-alpha.0` になります。`changeset:version` は package version を更新し、pnpm lockfile を再生成します。新しい prerelease cycle は `pnpm changeset pre enter alpha` で開始し、終了時に `pnpm changeset pre exit` を実行します。
+
+main への push を契機に、GitHub Actions が Changesets の version PR を作成または更新します。その PR の merge 後は、全 workspace の検証と製品 CLI の pack を行い、`v<version>` GitHub Release を作成して `repo-cli-<version>.tgz` を添付します。SemVer prerelease は GitHub の pre-release として公開し、npm registry へは publish しません。未公開の `0.0.0` は skip し、同じ version の Release と asset が既にあれば何も変更しません。公開済み Release の asset が欠けている場合は workflow を失敗させ、既存 Release を置き換えません。
+
+DBに影響するchangesetには、対象version、変更前後のschema、データ変換・既定値・重複や欠損値の扱い、保持・削除されるID/関係/値、適用順序と適用を省略できる条件、適用後の確認方法を記載します。生成された詳細は各packageの `CHANGELOG.md` と製品tarball内の `changelogs/` に残します。GitHub Releaseのノートには対象versionの説明を載せ、package名の見出しは追加しません。
+
+version PR の自動作成には、repository settings の `Actions > General > Allow GitHub Actions to create and approve pull requests` を有効にする必要があります。workflow は必要な `contents` と `pull-requests` 権限を指定します。
+
+CLI の `apps/cli/src/migration/release-registry.ts` には、migration の基準となる package version ごとの schema ID と database changes を記録します。package version を進める際は、現行 schema が同じ場合も registry にその version を追加し、schema または data migration がある場合は `changes` に種類、概要、詳細を記録してください。registry にない version は migration state として受け付けません。
+
 ## API
 
 API のベースは `/api/v1` です。
@@ -64,7 +84,7 @@ migration は利用側プロジェクトで生成・検証し、利用側が適�
 
 利用側プロジェクトでは、GitHub Releases の製品 tarball の URL を指定して `pnpm add 'https://github.com/kyudaisai-committee/cms-oss/releases/download/<tag>/repo-cli-<version>.tgz'` を実行します。`<tag>` と `<version>` は公開済み Release と製品 asset の値に置き換えてください。現在は公開 Release がないため、この URL は形式を示す例です。利用側でリポジトリを clone・build・pack する必要はありません。
 
-配布物を作成する側は、リポジトリのルートで `pnpm run pack:product --pack-destination /tmp/cms-product` を実行します。このコマンドは workspace の build と製品の組立を行ってから pack します。生成した `.tgz` を Release asset として配布します。GitHub が自動生成する Source code アーカイブとは別の成果物です。npm registry への公開は含みません。
+配布物を手元で作成する場合は、リポジトリのルートで `pnpm run pack:product --pack-destination /tmp/cms-product` を実行します。このコマンドは workspace の build と製品の組立を行ってから pack します。GitHub Actions の Release workflow もこのコマンドで生成した `.tgz` を Release asset として添付します。GitHub が自動生成する Source code アーカイブとは別の成果物です。npm registry への公開は含みません。
 
 ### 利用側の設定
 
@@ -119,7 +139,7 @@ pnpm exec cms migrate init --local
 
 リモート D1 を対象にする場合は `--local` を `--remote` に置き換えます。初期 SQL と Drizzle snapshot / journal は `drizzle.config.ts` の `out`（既定は `./drizzle`）、CMS の baseline は `drizzle/cms-state.json` に保存します。Wrangler の実際の migration 履歴を確認してから baseline を記録するため、適用の取消や失敗だけでは進みません。初期化中は `drizzle/.cms-initial-pending.json` に生成した version / schema / SQL の識別情報を保持し、再実行時は同じ SQL を使います。SQL の内容が変わった場合は自動再開を止めるため、後述の個別操作で確認・適用してください。既存の migration 履歴は上書き・初期化しません。
 
-`pnpm exec cms migrate init` と引数なしで実行した場合は、初期 SQL と履歴の生成だけを行い、DB は変更しません。生成物を確認した後、同じコマンドに `--local` / `--remote` を付けて適用できます。個別に操作する場合は `pnpm exec cms d1 migrations list --local` と `pnpm exec cms d1 migrations apply --local` を使い、適用確認後に `pnpm exec cms migrate mark-baseline --version 0.1.0` を実行します。`--local` は利用側の `.wrangler/state` を使い、Waku と永続状態を共有します。
+`pnpm exec cms migrate init` と引数なしで実行した場合は、初期 SQL と履歴の生成だけを行い、DB は変更しません。生成物を確認した後、同じコマンドに `--local` / `--remote` を付けて適用できます。個別に操作する場合は `pnpm exec cms d1 migrations list --local` と `pnpm exec cms d1 migrations apply --local` を使い、適用確認後に `pnpm exec cms migrate mark-baseline --version <version>` を実行します。`<version>` には実際に導入した CMS CLI の version を指定してください。`--local` は利用側の `.wrangler/state` を使い、Waku と永続状態を共有します。
 
 既存 DB では、実際の schema と migration 履歴を確認したうえで baseline を明示してください。依存更新後の `pnpm exec cms migrate` は変更内容と agent 指定のヒントを表示します。DB 変更がある場合に限り、`--codex` または `--claude` を付けると変更内容を渡して migration の準備を支援します。agent の終了だけでは準備済み状態を記録せず、レビュー後に `pnpm exec cms migrate mark-prepared --version <version>` を実行します。D1 適用履歴は Wrangler が管理するテーブル（既定は `d1_migrations`）に保持し、CMS 状態ファイルへ複製しません。
 

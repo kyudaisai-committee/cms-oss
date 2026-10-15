@@ -1,0 +1,15 @@
+{
+	"$schema": "../node_modules/@changesets/config/schema.json",
+	"changelog": "@changesets/cli/changelog",
+	"commit": false,
+	"fixed": [["@repo/cli", "@repo/web", "@repo/api", "@repo/core", "@repo/editor", "@repo/config"]],
+	"linked": [],
+	"access": "restricted",
+	"baseBranch": "main",
+	"updateInternalDependencies": "patch",
+	"ignore": [],
+	"privatePackages": {
+		"version": true,
+		"tag": false
+	}
+}
