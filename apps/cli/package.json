@@ -35,6 +35,7 @@
 		"@repo/core": "workspace:*",
 		"drizzle-kit": "^0.31.11",
 		"jiti": "^2.7.0",
+		"semver": "^7.8.5",
 		"wrangler": "^4.149.0"
 	},
 	"devDependencies": {
