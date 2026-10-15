@@ -1,3 +1,5 @@
+import { compare, valid } from "semver";
+
 export interface CmsDatabaseChange {
 	kind: "schema" | "data";
 	summary: string;
@@ -18,7 +20,13 @@ export interface CmsReleaseCatalog {
 
 export const cmsSchemaReleases = [
 	{
-		version: "0.1.0",
+		version: "0.0.0",
+		schemaId: "core-schema-v1",
+		schemaExport: "@repo/cli/db/schema",
+		changes: [],
+	},
+	{
+		version: "0.1.0-alpha.0",
 		schemaId: "core-schema-v1",
 		schemaExport: "@repo/cli/db/schema",
 		changes: [],
@@ -29,14 +37,14 @@ export function createCmsReleaseCatalog(
 	packageVersion: string,
 	releases: CmsSchemaRelease[] = cmsSchemaReleases,
 ): CmsReleaseCatalog {
-	const currentVersion = parseStableVersion(packageVersion);
+	const currentVersion = parseVersion(packageVersion);
 	if (!currentVersion) throw new Error(`The CMS package has an invalid version: ${packageVersion}`);
 
-	let previousVersion: number[] | undefined;
+	let previousVersion: string | undefined;
 	let previousRelease: CmsSchemaRelease | undefined;
 	for (const release of releases) {
-		const version = parseStableVersion(release.version);
-		if (!version || (previousVersion && compareVersionParts(version, previousVersion) <= 0)) {
+		const version = parseVersion(release.version);
+		if (!version || (previousVersion && compare(version, previousVersion) <= 0)) {
 			throw new Error("The CMS schema release registry contains an invalid or unordered version.");
 		}
 		if (!release.schemaId || !release.schemaExport.startsWith("@repo/cli/")) {
@@ -72,9 +80,9 @@ export function resolveCmsSchemaRelease(
 	version: string,
 	catalog: CmsReleaseCatalog,
 ): CmsSchemaRelease {
-	const parsedVersion = parseStableVersion(version);
+	const parsedVersion = parseVersion(version);
 	if (!parsedVersion) throw new Error(`Invalid CMS version: ${version}`);
-	if (compareVersionParts(parsedVersion, parseStableVersion(catalog.current.version)!) > 0) {
+	if (compare(parsedVersion, catalog.current.version) > 0) {
 		throw new Error(
 			`CMS version ${version} is newer than the installed version ${catalog.current.version}.`,
 		);
@@ -93,19 +101,10 @@ export function compareCmsReleaseVersions(
 ): number {
 	const left = resolveCmsSchemaRelease(leftVersion, catalog);
 	const right = resolveCmsSchemaRelease(rightVersion, catalog);
-	return compareVersionParts(parseStableVersion(left.version)!, parseStableVersion(right.version)!);
+	return compare(left.version, right.version);
 }
 
-function parseStableVersion(version: string): number[] | undefined {
-	const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(version);
-	if (!match) return undefined;
-	return match.slice(1).map(Number);
-}
-
-function compareVersionParts(left: number[], right: number[]): number {
-	for (let index = 0; index < left.length; index += 1) {
-		const difference = (left[index] ?? 0) - (right[index] ?? 0);
-		if (difference !== 0) return difference;
-	}
-	return 0;
+function parseVersion(version: string): string | undefined {
+	const parsed = valid(version);
+	return parsed === version ? version : undefined;
 }

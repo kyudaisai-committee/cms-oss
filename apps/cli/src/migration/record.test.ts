@@ -34,7 +34,10 @@ describe("explicit CMS migration state recording", () => {
 			recordCmsBaseline(createEmptyCmsMigrationState(), "0.2.0", dataReleaseCatalog),
 		).toThrow("newer than the installed version");
 		expect(() =>
-			recordCmsBaseline(createEmptyCmsMigrationState(), "0.1.0-beta", dataReleaseCatalog),
+			recordCmsBaseline(createEmptyCmsMigrationState(), "0.1.0-beta.1", dataReleaseCatalog),
+		).toThrow("not present in the installed schema history");
+		expect(() =>
+			recordCmsBaseline(createEmptyCmsMigrationState(), "0.1.0-beta.", dataReleaseCatalog),
 		).toThrow("Invalid CMS version");
 		expect(() =>
 			recordCmsBaseline(createEmptyCmsMigrationState(), "0.0.9", dataReleaseCatalog),

@@ -8,10 +8,10 @@ describe("CMS migration plan", () => {
 	it("reports an unknown baseline without treating the current schema as applied", () => {
 		const plan = createCmsMigrationPlan(
 			createEmptyCmsMigrationState(),
-			createCmsReleaseCatalog("0.1.0"),
+			createCmsReleaseCatalog("0.0.0"),
 		);
 
-		expect(plan).toEqual({ kind: "baseline-unknown", currentVersion: "0.1.0" });
+		expect(plan).toEqual({ kind: "baseline-unknown", currentVersion: "0.0.0" });
 		expect(formatCmsMigrationPlan(plan)).toContain("is not assumed to be applied");
 		expect(formatCmsMigrationPlan(plan)).toContain("cms migrate mark-baseline --version");
 	});
@@ -60,7 +60,7 @@ describe("CMS migration plan", () => {
 	it("refuses to interpret a baseline or prepared state outside the installed schema history", () => {
 		const state = createEmptyCmsMigrationState();
 		state.baseline = { version: "0.0.9", schemaId: "unknown" };
-		const plan = createCmsMigrationPlan(state, createCmsReleaseCatalog("0.1.0"));
+		const plan = createCmsMigrationPlan(state, createCmsReleaseCatalog("0.1.0-alpha.0"));
 
 		expect(plan.kind).toBe("baseline-unknown");
 		if (plan.kind !== "baseline-unknown") throw new Error("Expected an unknown baseline.");
@@ -69,10 +69,10 @@ describe("CMS migration plan", () => {
 
 	it("shows no database changes when the current schema is the recorded baseline", () => {
 		const state = createEmptyCmsMigrationState();
-		state.baseline = { version: "0.1.0", schemaId: "core-schema-v1" };
-		const plan = createCmsMigrationPlan(state, createCmsReleaseCatalog("0.1.0"));
+		state.baseline = { version: "0.0.0", schemaId: "core-schema-v1" };
+		const plan = createCmsMigrationPlan(state, createCmsReleaseCatalog("0.0.0"));
 
-		expect(formatCmsMigrationPlan(plan)).toBe("No database changes from CMS 0.1.0 to 0.1.0.");
+		expect(formatCmsMigrationPlan(plan)).toBe("No database changes from CMS 0.0.0 to 0.0.0.");
 	});
 
 	it("rejects a schema identity change without a recorded database change", () => {

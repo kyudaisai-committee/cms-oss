@@ -4,6 +4,9 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
+		"changeset": "changeset",
+		"changeset:status": "changeset status",
+		"changeset:version": "changeset version && pnpm install --lockfile-only",
 		"typecheck": "pnpm -r typecheck",
 		"verify": "pnpm run check && pnpm -r typecheck && pnpm -r test && pnpm -r build",
 		"build:product": "node scripts/product.mjs build",
