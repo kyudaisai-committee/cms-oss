@@ -1,5 +1,5 @@
 {
-	"$schema": "https://unpkg.com/@changesets/config@4.0.1/schema.json",
+	"$schema": "../node_modules/@changesets/config/schema.json",
 	"changelog": false,
 	"commit": false,
 	"fixed": [["@repo/cli", "@repo/web", "@repo/api", "@repo/core", "@repo/editor", "@repo/config"]],
