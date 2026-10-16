@@ -6,7 +6,11 @@ import { dirname, join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { collectProductReleaseNotes, copyProductChangelogs } from "./product-release-notes.js";
+import {
+	collectProductReleaseNotes,
+	collectProductReleaseVersions,
+	copyProductChangelogs,
+} from "./product-release-notes.js";
 
 const productVersion = "0.1.0-alpha.1";
 const previousVersion = "0.1.0-alpha.0";
@@ -37,6 +41,14 @@ ${currentSection}
 }
 
 describe("product release notes", () => {
+	it("collects known package versions from semantic-version release headings", () => {
+		expect(
+			collectProductReleaseVersions(
+				"# CMS\n\n## 0.1.0-alpha.1\n\nNotes.\n\n## Unreleased\n\nMore notes.\n\n```md\n## 1.0.0\n```\n",
+			),
+		).toEqual(["0.1.0-alpha.1"]);
+	});
+
 	it("combines identical first-release entries from all fixed packages once", () => {
 		const changelogs = packageChangelogs.map(({ name }) =>
 			makeChangelog(

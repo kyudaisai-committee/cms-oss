@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { cp, lstat, mkdir } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { cp, lstat, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const excludedDirectories = new Set([".git", "coverage", "dist", "node_modules"]);
@@ -32,6 +33,15 @@ export async function prepareProductWorkspace(
 		await cp(source, destination, { verbatimSymlinks: true });
 	}
 	runPnpm(["install", "--frozen-lockfile", "--ignore-scripts"], workspaceDirectory);
+}
+
+export async function addProductVersionChangesetFixture(workspaceDirectory: string): Promise<void> {
+	const changesetDirectory = path.join(workspaceDirectory, ".changeset");
+	await mkdir(changesetDirectory, { recursive: true });
+	await writeFile(
+		path.join(changesetDirectory, `product-consumer-${randomUUID()}.md`),
+		'---\n"@repo/cli": patch\n---\n\nExercise the isolated product version pipeline.\n',
+	);
 }
 
 export function runPnpm(arguments_: string[], cwd: string): void {

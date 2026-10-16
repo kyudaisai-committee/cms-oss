@@ -3,6 +3,7 @@ import { cp, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { validateCmsReleaseMetadata } from "../apps/cli/scripts/migration-release-metadata.ts";
 import { copyProductChangelogs } from "../apps/cli/scripts/product-release-notes.ts";
 import { copyPackageAssets } from "./product/copy-package-assets.ts";
 import {
@@ -30,6 +31,7 @@ if (action !== "build" && action !== "pack") {
 	throw new Error(`Unknown product action: ${action}`);
 }
 
+await validateCmsReleaseMetadata();
 await buildProduct();
 if (action === "pack") {
 	await packProduct();

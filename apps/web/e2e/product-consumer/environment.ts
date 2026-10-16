@@ -4,6 +4,7 @@ import path from "node:path";
 import { build, createServer, runnerImport, type InlineConfig } from "vite";
 
 import {
+	addProductVersionChangesetFixture,
 	prepareProductWorkspace,
 	runPnpm,
 } from "../../../cli/scripts/testing/product-workspace.ts";
@@ -22,6 +23,8 @@ export async function prepareProductConsumer(
 	const productDirectory = path.join(temporaryRoot, "product");
 	const consumerDirectory = path.join(temporaryRoot, "consumer");
 	await prepareProductWorkspace(repositoryRoot, workspaceDirectory);
+	await addProductVersionChangesetFixture(workspaceDirectory);
+	runPnpm(["changeset:version"], workspaceDirectory);
 	await mkdir(productDirectory, { recursive: true });
 	await mkdir(consumerDirectory, { recursive: true });
 
