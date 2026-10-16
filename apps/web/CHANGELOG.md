@@ -1,5 +1,15 @@
 # @repo/web
 
+## 0.1.0-alpha.1
+
+### Patch Changes
+
+- fd2b7f2: 開発用 RSC server が Cloudflare Vite plugin の依存最適化と連携できず失敗する問題を修正します。
+- @repo/api@0.1.0-alpha.1
+    - @repo/config@0.1.0-alpha.1
+    - @repo/core@0.1.0-alpha.1
+    - @repo/editor@0.1.0-alpha.1
+
 ## 0.1.0-alpha.0
 
 ### Minor Changes

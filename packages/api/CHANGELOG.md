@@ -1,5 +1,11 @@
 # @repo/api
 
+## 0.1.0-alpha.1
+
+### Patch Changes
+
+- @repo/core@0.1.0-alpha.1
+
 ## 0.1.0-alpha.0
 
 ### Minor Changes
