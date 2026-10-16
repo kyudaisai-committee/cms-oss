@@ -5,6 +5,7 @@ import { extname, join, relative } from "node:path";
 const excludedNames = new Set(["node_modules", "e2e", "coverage", "test", "tests"]);
 
 export const privatePackages = ["api", "core", "editor", "config"] as const;
+export const productPackageName = "@kyudaisai/cms";
 
 export type PrivatePackageName = (typeof privatePackages)[number];
 export type PackageDirectories = Record<PrivatePackageName, string>;
@@ -144,7 +145,7 @@ export async function writeProductManifest({
 	}
 
 	const productManifest: ProductManifest = {
-		name: cliManifest.name,
+		name: productPackageName,
 		version: cliManifest.version,
 		private: true,
 		type: "module",

@@ -113,7 +113,7 @@ async function writeConsumerFiles(directory: string, productArchive: string): Pr
 				name: "cms-product-browser-consumer",
 				private: true,
 				type: "module",
-				dependencies: { "@repo/cli": productArchive },
+				dependencies: { "@kyudaisai/cms": productArchive },
 				devDependencies: { typescript: "7.0.2" },
 			},
 			null,
@@ -126,7 +126,7 @@ async function writeConsumerFiles(directory: string, productArchive: string): Pr
 	);
 	await writeFile(
 		path.join(directory, "cms.config.ts"),
-		'import { defineConfig } from "@repo/cli/config";\n\nexport default defineConfig({\n\tcloudflare: { configPath: "./wrangler.jsonc" },\n});\n',
+		'import { defineConfig } from "@kyudaisai/cms/config";\n\nexport default defineConfig({\n\tcloudflare: { configPath: "./wrangler.jsonc" },\n});\n',
 	);
 	await writeFile(
 		path.join(directory, "wrangler.jsonc"),

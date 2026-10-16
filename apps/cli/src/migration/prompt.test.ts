@@ -20,7 +20,7 @@ describe("CMS migration prompt", () => {
 					},
 				],
 			},
-			schemaExport: "@repo/cli/db/schema",
+			schemaExport: "@kyudaisai/cms/db/schema",
 			configPath: "/consumer/cms.config.ts",
 			drizzleConfigPath: "/consumer/drizzle.config.ts",
 			migrationsDirectory: "/consumer/drizzle",
@@ -30,7 +30,7 @@ describe("CMS migration prompt", () => {
 		expect(prompt).toContain("Convert legacy `jp` values to `ja`");
 		expect(prompt).toContain("/consumer/cms.config.ts");
 		expect(prompt).toContain("/consumer/drizzle.config.ts");
-		expect(prompt).toContain("@repo/cli/db/schema");
+		expect(prompt).toContain("@kyudaisai/cms/db/schema");
 		expect(prompt).toContain("Preserve existing IDs, data, and foreign-key relationships");
 		expect(prompt).toContain("Do not apply migrations to any D1 database");
 		expect(prompt).toContain("do not update cms-state.json");

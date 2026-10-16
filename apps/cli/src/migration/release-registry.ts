@@ -22,13 +22,19 @@ export const cmsSchemaReleases = [
 	{
 		version: "0.0.0",
 		schemaId: "core-schema-v1",
-		schemaExport: "@repo/cli/db/schema",
+		schemaExport: "@kyudaisai/cms/db/schema",
 		changes: [],
 	},
 	{
 		version: "0.1.0-alpha.0",
 		schemaId: "core-schema-v1",
-		schemaExport: "@repo/cli/db/schema",
+		schemaExport: "@kyudaisai/cms/db/schema",
+		changes: [],
+	},
+	{
+		version: "0.1.0-alpha.1",
+		schemaId: "core-schema-v1",
+		schemaExport: "@kyudaisai/cms/db/schema",
 		changes: [],
 	},
 ] satisfies CmsSchemaRelease[];
@@ -47,7 +53,7 @@ export function createCmsReleaseCatalog(
 		if (!version || (previousVersion && compare(version, previousVersion) <= 0)) {
 			throw new Error("The CMS schema release registry contains an invalid or unordered version.");
 		}
-		if (!release.schemaId || !release.schemaExport.startsWith("@repo/cli/")) {
+		if (!release.schemaId || release.schemaExport !== "@kyudaisai/cms/db/schema") {
 			throw new Error(`The CMS schema release ${release.version} has an invalid schema reference.`);
 		}
 		if (

@@ -7,6 +7,7 @@ import { defineConfig } from "vitest/config";
 const browserProvider = playwright({ launchOptions: { executablePath: findChrome() } });
 
 export default defineConfig({
+	cacheDir: path.resolve(import.meta.dirname, "node_modules/.vite-product-consumer"),
 	resolve: { dedupe: ["react", "react-dom"] },
 	optimizeDeps: {
 		entries: [

@@ -4,6 +4,7 @@ commitish
 esbuild
 Français
 kumo
+kyudaisai
 lefthook
 networkidle
 peekable
