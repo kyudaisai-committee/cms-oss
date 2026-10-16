@@ -9,6 +9,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { prepareProductWorkspace, runPnpm } from "./testing/product-workspace.ts";
+
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
 describe("packed CMS consumer", () => {
@@ -16,12 +18,14 @@ describe("packed CMS consumer", () => {
 		await using temporaryDirectory = await mkdtempDisposable(
 			join(tmpdir(), "cms-product-consumer-"),
 		);
+		const workspaceDirectory = join(temporaryDirectory.path, "workspace");
 		const productDirectory = join(temporaryDirectory.path, "product");
 		const consumerDirectory = join(temporaryDirectory.path, "consumer");
+		await prepareProductWorkspace(repositoryRoot, workspaceDirectory);
 		await mkdir(productDirectory);
 		await mkdir(consumerDirectory);
 
-		runPnpm(["pack:product", "--pack-destination", productDirectory], repositoryRoot);
+		runPnpm(["pack:product", "--pack-destination", productDirectory], workspaceDirectory);
 		const archives = (await readdir(productDirectory)).filter((name) => name.endsWith(".tgz"));
 		expect(archives).toHaveLength(1);
 		const productArchive = archives[0];
@@ -96,21 +100,6 @@ assert.equal(typeof config.cmsSchemaPath, "string");
 assert.equal(typeof schema.news, "object");
 await access(config.cmsSchemaPath);
 `;
-
-function runPnpm(arguments_: string[], cwd: string): void {
-	console.info(`consumer command: pnpm ${arguments_.join(" ")}`);
-	const result = spawnSync("pnpm", arguments_, {
-		cwd,
-		encoding: "utf8",
-		maxBuffer: 32 * 1024 * 1024,
-		shell: false,
-	});
-	if (result.error) throw result.error;
-	expect(
-		result.status,
-		`pnpm ${arguments_.join(" ")} failed in ${cwd}:\n${result.stdout}\n${result.stderr}`,
-	).toBe(0);
-}
 
 function runNode(arguments_: string[], cwd: string): void {
 	console.info(`consumer command: node ${arguments_.join(" ")}`);

@@ -1,13 +1,11 @@
 /*
- * Kumo's Tailwind classes live in its compiled component modules. Tailwind
- * v4 skips node_modules by default, so this official Kumo source directive
- * keeps those component styles in the generated stylesheet.
+ * Package source paths are resolved from the installed packages in
+ * waku.config.ts so this stylesheet works in both the workspace and product.
  */
 @import "@cloudflare/kumo/styles/tailwind";
 @import "tailwindcss" source(none);
 @source "./**/*.{ts,tsx}";
-@source "../../../packages/editor/src/**/*.{ts,tsx}";
-@source "../node_modules/@cloudflare/kumo/dist/**/*.{js,jsx,ts,tsx}";
+/* @cms-tailwind-package-sources */
 
 :root {
 	font-family: Inter, ui-sans-serif, system-ui, sans-serif;
