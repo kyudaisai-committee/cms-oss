@@ -100,6 +100,7 @@ describe("CMS migration plan", () => {
 			state,
 			createCmsReleaseCatalog("0.2.0", {
 				packageVersions: ["0.0.0", "0.1.0", "0.2.0"],
+				databaseReleases: [],
 				schemaHistory: initialSchemaHistory,
 			}),
 		);

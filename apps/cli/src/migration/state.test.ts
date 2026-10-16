@@ -74,6 +74,7 @@ describe("CMS migration state", () => {
 		const packageVersions = ["0.0.0", "0.1.0-alpha.2", "0.1.0-alpha.10", "0.1.0-beta.1", "0.1.0"];
 		const catalog = createCmsReleaseCatalog("0.1.0", {
 			packageVersions,
+			databaseReleases: [],
 			schemaHistory: initialSchemaHistory,
 		});
 

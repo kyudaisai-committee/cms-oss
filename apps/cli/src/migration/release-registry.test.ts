@@ -1,21 +1,20 @@
 import { describe, expect, it } from "vitest";
 
 import type { CmsDatabaseRelease } from "./database-changes.js";
-import { cmsPackageVersions } from "./release-metadata.generated.js";
-import {
-	createCmsReleaseCatalog,
-	cmsDatabaseReleases,
-	resolveCmsSchemaRelease,
-} from "./release-registry.js";
+import { createCmsReleaseCatalog, resolveCmsSchemaRelease } from "./release-registry.js";
 
 const initialSchemaHistory = [{ version: "0.0.0", fingerprint: `sha256:${"1".repeat(64)}` }];
+const prereleasePackageVersions = ["0.0.0", "0.1.0-alpha.0", "0.1.0-alpha.1"];
+const noDatabaseReleases: CmsDatabaseRelease[] = [];
 
 describe("CMS database release history", () => {
 	it("keeps package releases without database changes out of the database event list", () => {
-		const catalog = createCmsReleaseCatalog("0.1.0-alpha.1");
+		const catalog = createCmsReleaseCatalog("0.1.0-alpha.1", {
+			packageVersions: prereleasePackageVersions,
+			databaseReleases: noDatabaseReleases,
+			schemaHistory: initialSchemaHistory,
+		});
 
-		expect(cmsDatabaseReleases).toEqual([]);
-		expect(cmsPackageVersions).toContain("0.1.0-alpha.1");
 		expect(catalog.releases.map((release) => release.version)).toContain("0.1.0-alpha.0");
 		expect(catalog.current).toMatchObject({
 			version: "0.1.0-alpha.1",
@@ -28,6 +27,7 @@ describe("CMS database release history", () => {
 	it("accepts an additional known package version without a database event", () => {
 		const catalog = createCmsReleaseCatalog("0.1.0-alpha.2", {
 			packageVersions: ["0.0.0", "0.1.0-alpha.0", "0.1.0-alpha.1", "0.1.0-alpha.2"],
+			databaseReleases: noDatabaseReleases,
 			schemaHistory: initialSchemaHistory,
 		});
 
@@ -64,9 +64,14 @@ describe("CMS database release history", () => {
 	});
 
 	it("rejects unregistered package versions and future references", () => {
-		const catalog = createCmsReleaseCatalog("0.1.0-alpha.1");
+		const history = {
+			packageVersions: prereleasePackageVersions,
+			databaseReleases: noDatabaseReleases,
+			schemaHistory: initialSchemaHistory,
+		};
+		const catalog = createCmsReleaseCatalog("0.1.0-alpha.1", history);
 
-		expect(() => createCmsReleaseCatalog("0.1.0-alpha.2")).toThrow(
+		expect(() => createCmsReleaseCatalog("0.1.0-alpha.2", history)).toThrow(
 			"missing from the package release history",
 		);
 		expect(() => resolveCmsSchemaRelease("0.2.0", catalog)).toThrow(
