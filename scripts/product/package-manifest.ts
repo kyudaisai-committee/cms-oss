@@ -14,6 +14,7 @@ export interface PackageManifest {
 	version: string;
 	bin: Record<string, string> | undefined;
 	dependencies: Record<string, string> | undefined;
+	devDependencies: Record<string, string> | undefined;
 	peerDependencies: Record<string, string> | undefined;
 	imports: Record<string, unknown> | undefined;
 	exports: Record<string, unknown> | undefined;
@@ -120,6 +121,12 @@ export async function writeProductManifest({
 		filterDependencies(webManifest.dependencies, (name) => !name.startsWith("@repo/")),
 		"apps/web",
 	);
+	addDependencies(
+		dependencies,
+		dependencySources,
+		requiredProductTypeDependencies(webManifest.devDependencies, "apps/web"),
+		"apps/web",
+	);
 	for (const name of privatePackageNames) {
 		const manifest = await readPackageManifest(join(packageDirectories[name], "package.json"));
 		addDependencies(
@@ -191,10 +198,27 @@ export async function readPackageManifest(path: string): Promise<PackageManifest
 		version: parsed.version,
 		bin: optionalStringRecord(parsed.bin, "bin", path),
 		dependencies: optionalStringRecord(parsed.dependencies, "dependencies", path),
+		devDependencies: optionalStringRecord(parsed.devDependencies, "devDependencies", path),
 		peerDependencies: optionalStringRecord(parsed.peerDependencies, "peerDependencies", path),
 		imports: optionalUnknownRecord(parsed.imports, "imports", path),
 		exports: optionalUnknownRecord(parsed.exports, "exports", path),
 	};
+}
+
+function requiredProductTypeDependencies(
+	devDependencies: Record<string, string> | undefined,
+	source: string,
+): Record<string, string> {
+	const requiredNames = ["@types/node", "@types/react", "@types/react-dom"];
+	return Object.fromEntries(
+		requiredNames.map((name) => {
+			const version = devDependencies?.[name];
+			if (version === undefined) {
+				throw new Error(`${source} must declare ${name} for consumer TypeScript checks.`);
+			}
+			return [name, version];
+		}),
+	);
 }
 
 function optionalStringRecord(

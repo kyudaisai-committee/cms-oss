@@ -114,6 +114,12 @@ export default defineConfig({
 
 `--wrangler-config` は `cloudflare.configPath` より優先されます。`--env production` を付けると Wrangler の `env.production` を選び、dev / build / typegen / D1 / deploy で同じ環境を使います。存在しない環境は拒否します。`--config` の相対パスは `--cwd`、Wrangler 設定の相対パスは `cms.config.ts` のディレクトリが基準です。`WorkerConfig` 内のパスは公式 plugin に従い、選択した Wrangler 設定があればそのファイル、なければ `.cms/` が基準です。直接設定のパスを固定する場合は、ESM の API で絶対パスを指定してください。
 
+利用側で生成されたアプリを型検査する場合は、TypeScript 7 を開発依存に追加し、`pnpm exec cms typegen` の後に次を実行します。React と Node.js の型定義は製品 tarball に含まれるため、利用側で個別に追加する必要はありません。
+
+```sh
+pnpm exec tsc --noEmit -p .cms/tsconfig.json
+```
+
 `drizzle.config.ts` では、配布物が公開する現行 schema を ESM で参照できます。
 
 ```ts
