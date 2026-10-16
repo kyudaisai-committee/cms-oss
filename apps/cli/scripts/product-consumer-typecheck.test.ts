@@ -1,10 +1,11 @@
-import { spawnSync } from "node:child_process";
 import { mkdir, mkdtempDisposable, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { describe, expect, it } from "vitest";
+import { describe, it } from "vitest";
+
+import { prepareProductWorkspace, runPnpm } from "./testing/product-workspace.ts";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
@@ -13,12 +14,14 @@ describe("packed CMS consumer typecheck", () => {
 		await using temporaryDirectory = await mkdtempDisposable(
 			join(tmpdir(), "cms-product-consumer-"),
 		);
+		const workspaceDirectory = join(temporaryDirectory.path, "workspace");
 		const productDirectory = join(temporaryDirectory.path, "product");
 		const consumerDirectory = join(temporaryDirectory.path, "consumer");
+		await prepareProductWorkspace(repositoryRoot, workspaceDirectory);
 		await mkdir(productDirectory);
 		await mkdir(consumerDirectory);
 
-		runPnpm(["pack:product", "--pack-destination", productDirectory], repositoryRoot);
+		runPnpm(["pack:product", "--pack-destination", productDirectory], workspaceDirectory);
 		const productArchive = (await readdir(productDirectory)).find((name) => name.endsWith(".tgz"));
 		if (productArchive === undefined) throw new Error("Product pack did not create a tarball.");
 
@@ -33,20 +36,6 @@ describe("packed CMS consumer typecheck", () => {
 		}
 	}, 600_000);
 });
-
-function runPnpm(arguments_: string[], cwd: string): void {
-	const result = spawnSync("pnpm", arguments_, {
-		cwd,
-		encoding: "utf8",
-		maxBuffer: 32 * 1024 * 1024,
-		shell: false,
-	});
-	if (result.error) throw result.error;
-	expect(
-		result.status,
-		`pnpm ${arguments_.join(" ")} failed in ${cwd}:\n${result.stdout}\n${result.stderr}`,
-	).toBe(0);
-}
 
 async function writeConsumerFiles(directory: string, productArchive: string): Promise<void> {
 	await writeFile(
