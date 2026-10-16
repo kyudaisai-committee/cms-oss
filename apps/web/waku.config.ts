@@ -1,4 +1,6 @@
-import { resolve } from "node:path";
+import { realpathSync } from "node:fs";
+import { findPackageJSON } from "node:module";
+import { dirname, join, resolve } from "node:path";
 
 import { cloudflare, type WorkerConfig } from "@cloudflare/vite-plugin";
 import babel from "@rolldown/plugin-babel";
@@ -80,6 +82,7 @@ export function createCmsWakuConfig(config?: CmsConfig, wranglerConfigPath?: str
 					inspectorPort: false,
 					remoteBindings: false,
 				}),
+				tailwindPackageSourcesPlugin(),
 				tailwindcss(),
 				react(),
 				babel({ presets: [reactCompilerPreset()] }),
@@ -99,6 +102,38 @@ export function createCmsWakuConfig(config?: CmsConfig, wranglerConfigPath?: str
 			},
 		},
 	});
+}
+
+function tailwindPackageSourcesPlugin() {
+	const packageManifest = join(process.cwd(), "package.json");
+	const editorPackage = findPackageDirectory("@repo/editor", packageManifest);
+	const kumoPackage = findPackageDirectory("@cloudflare/kumo", packageManifest);
+	const sourceDirectives = [
+		formatTailwindSource(join(editorPackage, "src/**/*.{ts,tsx}")),
+		formatTailwindSource(join(kumoPackage, "dist/**/*.{js,jsx,ts,tsx}")),
+	].join("\n");
+
+	return {
+		name: "cms-tailwind-package-sources",
+		enforce: "pre" as const,
+		transform(code: string, id: string) {
+			const sourceId = id.replace(/\?.*$/, "");
+			if (!sourceId.endsWith("/styles.css")) return null;
+			return code.replace("/* @cms-tailwind-package-sources */", sourceDirectives);
+		},
+	};
+}
+
+function findPackageDirectory(packageName: string, base: string): string {
+	const packageManifest = findPackageJSON(packageName, base);
+	if (packageManifest === undefined) {
+		throw new Error(`Required Tailwind source package is not installed: ${packageName}`);
+	}
+	return dirname(realpathSync(packageManifest));
+}
+
+function formatTailwindSource(source: string): string {
+	return `@source "${source.replaceAll("\\", "/").replaceAll('"', '\\"')}";`;
 }
 
 export function resolveCmsWorkerConfig(
