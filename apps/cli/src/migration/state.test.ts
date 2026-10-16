@@ -4,11 +4,11 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import type { CmsDatabaseRelease } from "./database-changes.js";
 import {
 	compareCmsReleaseVersions,
 	createCmsReleaseCatalog,
 	resolveCmsSchemaRelease,
-	type CmsSchemaRelease,
 } from "./release-registry.js";
 import {
 	createEmptyCmsMigrationState,
@@ -17,6 +17,8 @@ import {
 	validateVersionReference,
 	writeCmsMigrationState,
 } from "./state.js";
+
+const initialSchemaHistory = [{ version: "0.0.0", fingerprint: `sha256:${"1".repeat(64)}` }];
 
 describe("CMS migration state", () => {
 	it("keeps missing baseline and prepared records unknown until the consumer records them", async () => {
@@ -54,7 +56,7 @@ describe("CMS migration state", () => {
 		);
 		expect(() => resolveCmsSchemaRelease("invalid", catalog)).toThrow("Invalid CMS version");
 		expect(() => resolveCmsSchemaRelease("0.0.0-beta.1", catalog)).toThrow(
-			"not present in the installed schema history",
+			"not present in the installed package release history",
 		);
 	});
 
@@ -69,18 +71,11 @@ describe("CMS migration state", () => {
 	});
 
 	it("orders prereleases and stable releases according to SemVer", () => {
-		const releases: CmsSchemaRelease[] = [
-			"0.1.0-alpha.2",
-			"0.1.0-alpha.10",
-			"0.1.0-beta.1",
-			"0.1.0",
-		].map((version) => ({
-			version,
-			schemaId: "core-schema-v1",
-			schemaExport: "@kyudaisai/cms/db/schema",
-			changes: [],
-		}));
-		const catalog = createCmsReleaseCatalog("0.1.0", releases);
+		const packageVersions = ["0.0.0", "0.1.0-alpha.2", "0.1.0-alpha.10", "0.1.0-beta.1", "0.1.0"];
+		const catalog = createCmsReleaseCatalog("0.1.0", {
+			packageVersions,
+			schemaHistory: initialSchemaHistory,
+		});
 
 		expect(resolveCmsSchemaRelease("0.1.0-alpha.2", catalog).version).toBe("0.1.0-alpha.2");
 		expect(resolveCmsSchemaRelease("0.1.0-beta.1", catalog).version).toBe("0.1.0-beta.1");
@@ -88,26 +83,22 @@ describe("CMS migration state", () => {
 		expect(compareCmsReleaseVersions("0.1.0-alpha.10", "0.1.0-beta.1", catalog)).toBeLessThan(0);
 		expect(compareCmsReleaseVersions("0.1.0-beta.1", "0.1.0", catalog)).toBeLessThan(0);
 		expect(() => resolveCmsSchemaRelease("0.1.0-rc.1", catalog)).toThrow(
-			"not present in the installed schema history",
+			"not present in the installed package release history",
 		);
 	});
 
 	it("allows a data-only release to keep the same schema identifier", () => {
-		const releases: CmsSchemaRelease[] = [
-			{
-				version: "0.1.0",
-				schemaId: "core-schema-v1",
-				schemaExport: "@kyudaisai/cms/db/schema",
-				changes: [],
-			},
+		const databaseReleases: CmsDatabaseRelease[] = [
 			{
 				version: "0.1.1",
-				schemaId: "core-schema-v1",
-				schemaExport: "@kyudaisai/cms/db/schema",
 				changes: [{ kind: "data", summary: "Normalize old values", details: ["Preserve IDs."] }],
 			},
 		];
-		const catalog = createCmsReleaseCatalog("0.1.1", releases);
+		const catalog = createCmsReleaseCatalog("0.1.1", {
+			packageVersions: ["0.0.0", "0.1.0", "0.1.1"],
+			databaseReleases,
+			schemaHistory: initialSchemaHistory,
+		});
 
 		expect(resolveVersionReference("0.1.0", catalog)).toEqual({
 			version: "0.1.0",

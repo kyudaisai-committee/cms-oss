@@ -37,11 +37,11 @@ pnpm changeset:version
 
 main への push を契機に、GitHub Actions が Changesets の version PR を作成または更新します。その PR の merge 後は、全 workspace の検証と製品 CLI の pack を行い、`v<version>` GitHub Release を作成して `kyudaisai-cms-<version>.tgz` を添付します。SemVer prerelease は GitHub の pre-release として公開し、npm registry へは publish しません。未公開の `0.0.0` は skip し、同じ version の Release と asset が既にあれば何も変更しません。公開済み Release の asset が欠けている場合は workflow を失敗させ、既存 Release を置き換えません。
 
-DBに影響するchangesetには、対象version、変更前後のschema、データ変換・既定値・重複や欠損値の扱い、保持・削除されるID/関係/値、適用順序と適用を省略できる条件、適用後の確認方法を記載します。生成された詳細は各packageの `CHANGELOG.md` と製品tarball内の `changelogs/` に残します。GitHub Releaseのノートには対象versionの説明を載せ、package名の見出しは追加しません。
+DBに影響するchangesetには、変更前後のschema、データ変換・既定値・重複や欠損値の扱い、保持・削除されるID/関係/値、適用順序と適用を省略できる条件、適用後の確認方法を記載します。package version は Changesets の version 処理で確定し、生成された詳細は各packageの `CHANGELOG.md` と製品tarball内の `changelogs/` に残します。GitHub Releaseのノートには対象versionの説明を載せ、package名の見出しは追加しません。
 
 version PR の自動作成には、repository settings の `Actions > General > Allow GitHub Actions to create and approve pull requests` を有効にする必要があります。workflow は必要な `contents` と `pull-requests` 権限を指定します。
 
-CLI の `apps/cli/src/migration/release-registry.ts` には、migration の基準となる package version ごとの schema ID と database changes を記録します。package version を進める際は、現行 schema が同じ場合も registry にその version を追加し、schema または data migration がある場合は `changes` に種類、概要、詳細を記録してください。registry にない version は migration state として受け付けません。
+CMS package version の履歴は `apps/cli/CHANGELOG.md` の SemVer 見出しから生成します。通常の package version 更新では database change record を追加せず、DB 変更のない known package version は直近の schema ID を引き継ぎます。未登録またはインストール済み package より新しい version は migration state として受け付けません。実際の schema/data 変更は `apps/cli/src/migration/schema-history.json` の `databaseReleases` に `version: "pending"` の明示イベントとして記録します。schema change では同じファイルに pending Drizzle Kit snapshot も記録し、data-only change では snapshot を追加しません。schema イベントを追加した後、`node apps/cli/scripts/migration-release-metadata.ts --record-schema` が現在の schema snapshot を記録します。`pnpm changeset:version` は Changesets が決めた既知の新しい package version へ pending event と snapshot を結び付け、runtime metadata を生成します。通常の pack/release 検証は履歴を変更せず、未解決 pending や現在の schema と snapshot の不一致があれば失敗します。
 
 ## API
 

@@ -9,7 +9,12 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { prepareProductWorkspace, runPnpm } from "./testing/product-workspace.ts";
+import { readProductSchemaHistory, writeProductSchemaHistory } from "./database-schema-history.ts";
+import {
+	addProductVersionChangesetFixture,
+	prepareProductWorkspace,
+	runPnpm,
+} from "./testing/product-workspace.ts";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
@@ -22,6 +27,9 @@ describe("packed CMS consumer", () => {
 		const productDirectory = join(temporaryDirectory.path, "product");
 		const consumerDirectory = join(temporaryDirectory.path, "consumer");
 		await prepareProductWorkspace(repositoryRoot, workspaceDirectory);
+		await addProductVersionChangesetFixture(workspaceDirectory);
+		await addPendingDataRelease(workspaceDirectory);
+		runPnpm(["changeset:version"], workspaceDirectory);
 		await mkdir(productDirectory);
 		await mkdir(consumerDirectory);
 
@@ -83,6 +91,23 @@ describe("packed CMS consumer", () => {
 		await expectDevServerResponse(consumerDirectory);
 	}, 600_000);
 });
+
+async function addPendingDataRelease(workspaceDirectory: string): Promise<void> {
+	const historyPath = join(workspaceDirectory, "apps/cli/src/migration/schema-history.json");
+	const history = await readProductSchemaHistory(historyPath);
+	if (history.databaseReleases.some((release) => release.version === "pending")) return;
+	history.databaseReleases.push({
+		version: "pending",
+		changes: [
+			{
+				kind: "data",
+				summary: "Exercise pending release binding",
+				details: ["Keep the schema baseline unchanged."],
+			},
+		],
+	});
+	await writeProductSchemaHistory(historyPath, history);
+}
 
 const consumerRuntimeAssertions = `
 import assert from "node:assert/strict";

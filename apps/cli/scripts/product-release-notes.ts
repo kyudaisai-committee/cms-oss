@@ -3,6 +3,7 @@ import { copyFile, mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { fromMarkdown } from "mdast-util-from-markdown";
+import { valid } from "semver";
 
 type MarkdownNode = ReturnType<typeof fromMarkdown>["children"][number];
 
@@ -85,6 +86,16 @@ export function collectProductReleaseNotes(version: string, changelogs: readonly
 		.map(({ heading, bodies }) => `${heading}\n\n${[...bodies].join("\n\n")}`)
 		.join("\n\n")
 		.trim();
+}
+
+export function collectProductReleaseVersions(markdown: string): string[] {
+	const versions = new Set<string>();
+	for (const node of fromMarkdown(markdown).children) {
+		if (!isHeading(node, 2)) continue;
+		const version = nodeText(node);
+		if (valid(version) === version) versions.add(version);
+	}
+	return [...versions];
 }
 
 export async function copyProductChangelogs(

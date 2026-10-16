@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 
+import type { CmsDatabaseRelease } from "./database-changes.js";
 import { createCmsMigrationPlan, formatCmsMigrationPlan } from "./plan.js";
-import { createCmsReleaseCatalog, type CmsSchemaRelease } from "./release-registry.js";
+import { createCmsReleaseCatalog } from "./release-registry.js";
 import { createEmptyCmsMigrationState } from "./state.js";
+
+const initialSchemaHistory = [{ version: "0.0.0", fingerprint: `sha256:${"1".repeat(64)}` }];
 
 describe("CMS migration plan", () => {
 	it("reports an unknown baseline without treating the current schema as applied", () => {
@@ -17,23 +20,13 @@ describe("CMS migration plan", () => {
 	});
 
 	it("lists schema and data changes after the last prepared version", () => {
-		const releases: CmsSchemaRelease[] = [
-			{
-				version: "0.1.0",
-				schemaId: "core-schema-v1",
-				schemaExport: "@kyudaisai/cms/db/schema",
-				changes: [],
-			},
+		const databaseReleases: CmsDatabaseRelease[] = [
 			{
 				version: "0.1.1",
-				schemaId: "core-schema-v1",
-				schemaExport: "@kyudaisai/cms/db/schema",
 				changes: [{ kind: "data", summary: "Normalize slugs", details: ["Keep existing IDs."] }],
 			},
 			{
 				version: "0.2.0",
-				schemaId: "core-schema-v2",
-				schemaExport: "@kyudaisai/cms/db/schema",
 				changes: [
 					{
 						kind: "schema",
@@ -43,10 +36,18 @@ describe("CMS migration plan", () => {
 				],
 			},
 		];
+		const catalog = createCmsReleaseCatalog("0.2.0", {
+			packageVersions: ["0.0.0", "0.1.0", "0.1.1", "0.2.0"],
+			databaseReleases,
+			schemaHistory: [
+				...initialSchemaHistory,
+				{ version: "0.2.0", fingerprint: `sha256:${"2".repeat(64)}` },
+			],
+		});
 		const state = createEmptyCmsMigrationState();
 		state.baseline = { version: "0.1.0", schemaId: "core-schema-v1" };
 		state.preparedThrough = { version: "0.1.1", schemaId: "core-schema-v1" };
-		const plan = createCmsMigrationPlan(state, createCmsReleaseCatalog("0.2.0", releases));
+		const plan = createCmsMigrationPlan(state, catalog);
 
 		expect(plan.kind).toBe("changes");
 		if (plan.kind !== "changes") throw new Error("Expected a migration change plan.");
@@ -64,7 +65,7 @@ describe("CMS migration plan", () => {
 
 		expect(plan.kind).toBe("baseline-unknown");
 		if (plan.kind !== "baseline-unknown") throw new Error("Expected an unknown baseline.");
-		expect(plan.reason).toContain("not present in the installed schema history");
+		expect(plan.reason).toContain("not present in the installed package release history");
 	});
 
 	it("shows no database changes when the current schema is the recorded baseline", () => {
@@ -76,44 +77,32 @@ describe("CMS migration plan", () => {
 	});
 
 	it("rejects a schema identity change without a recorded database change", () => {
-		const releases: CmsSchemaRelease[] = [
-			{
-				version: "0.1.0",
-				schemaId: "schema-v1",
-				schemaExport: "@kyudaisai/cms/db/schema",
-				changes: [],
-			},
+		const databaseReleases: CmsDatabaseRelease[] = [
 			{
 				version: "0.2.0",
-				schemaId: "schema-v2",
-				schemaExport: "@kyudaisai/cms/db/schema",
-				changes: [],
+				changes: [{ kind: "schema", summary: "Change the schema", details: ["Preserve rows."] }],
 			},
 		];
 
-		expect(() => createCmsReleaseCatalog("0.2.0", releases)).toThrow(
-			"changes schema identity without recording a database change",
-		);
+		expect(() =>
+			createCmsReleaseCatalog("0.2.0", {
+				packageVersions: ["0.0.0", "0.1.0", "0.2.0"],
+				databaseReleases,
+				schemaHistory: initialSchemaHistory,
+			}),
+		).toThrow(/schema snapshot/);
 	});
 
 	it("allows a version-only release when the schema identity is unchanged", () => {
-		const releases: CmsSchemaRelease[] = [
-			{
-				version: "0.1.0",
-				schemaId: "schema-v1",
-				schemaExport: "@kyudaisai/cms/db/schema",
-				changes: [],
-			},
-			{
-				version: "0.2.0",
-				schemaId: "schema-v1",
-				schemaExport: "@kyudaisai/cms/db/schema",
-				changes: [],
-			},
-		];
 		const state = createEmptyCmsMigrationState();
-		state.baseline = { version: "0.1.0", schemaId: "schema-v1" };
-		const plan = createCmsMigrationPlan(state, createCmsReleaseCatalog("0.2.0", releases));
+		state.baseline = { version: "0.1.0", schemaId: "core-schema-v1" };
+		const plan = createCmsMigrationPlan(
+			state,
+			createCmsReleaseCatalog("0.2.0", {
+				packageVersions: ["0.0.0", "0.1.0", "0.2.0"],
+				schemaHistory: initialSchemaHistory,
+			}),
+		);
 
 		expect(plan).toEqual({ kind: "no-changes", fromVersion: "0.1.0", toVersion: "0.2.0" });
 	});

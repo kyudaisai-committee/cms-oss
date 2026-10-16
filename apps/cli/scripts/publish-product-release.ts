@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 
 import { prerelease, valid } from "semver";
 
+import { validateCmsReleaseMetadata } from "./migration-release-metadata.ts";
 import { collectProductReleaseNotes } from "./product-release-notes.ts";
 
 type ProductReleaseAction = "skip" | "create" | "upload" | "publish";
@@ -296,6 +297,7 @@ function runGh(arguments_: string[]): GitHubCliResult {
 }
 
 async function main(): Promise<void> {
+	await validateCmsReleaseMetadata();
 	const version = readProductVersion();
 	const initialPlan = planProductRelease(version, undefined, productArchiveName(version));
 	if (initialPlan.action === "skip") {

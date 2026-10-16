@@ -1,29 +1,20 @@
 import { describe, expect, it } from "vitest";
 
+import type { CmsDatabaseRelease } from "./database-changes.js";
 import { recordCmsBaseline, recordCmsPreparedThrough } from "./record.js";
-import { createCmsReleaseCatalog, type CmsSchemaRelease } from "./release-registry.js";
+import { createCmsReleaseCatalog } from "./release-registry.js";
 import { createEmptyCmsMigrationState } from "./state.js";
 
-const dataReleaseCatalog = createCmsReleaseCatalog("0.1.2", [
-	{
-		version: "0.1.0",
-		schemaId: "core-schema-v1",
-		schemaExport: "@kyudaisai/cms/db/schema",
-		changes: [],
-	},
-	{
-		version: "0.1.1",
-		schemaId: "core-schema-v1",
-		schemaExport: "@kyudaisai/cms/db/schema",
-		changes: [{ kind: "data", summary: "Normalize slugs", details: ["Keep IDs."] }],
-	},
-	{
-		version: "0.1.2",
-		schemaId: "core-schema-v1",
-		schemaExport: "@kyudaisai/cms/db/schema",
-		changes: [],
-	},
-] satisfies CmsSchemaRelease[]);
+const dataReleaseCatalog = createCmsReleaseCatalog("0.1.2", {
+	packageVersions: ["0.0.0", "0.1.0", "0.1.1", "0.1.2"],
+	databaseReleases: [
+		{
+			version: "0.1.1",
+			changes: [{ kind: "data", summary: "Normalize slugs", details: ["Keep IDs."] }],
+		},
+	] satisfies CmsDatabaseRelease[],
+	schemaHistory: [{ version: "0.0.0", fingerprint: `sha256:${"1".repeat(64)}` }],
+});
 
 describe("explicit CMS migration state recording", () => {
 	it("requires a known, non-future version and records its matching schema ID", () => {
@@ -35,13 +26,13 @@ describe("explicit CMS migration state recording", () => {
 		).toThrow("newer than the installed version");
 		expect(() =>
 			recordCmsBaseline(createEmptyCmsMigrationState(), "0.1.0-beta.1", dataReleaseCatalog),
-		).toThrow("not present in the installed schema history");
+		).toThrow("not present in the installed package release history");
 		expect(() =>
 			recordCmsBaseline(createEmptyCmsMigrationState(), "0.1.0-beta.", dataReleaseCatalog),
 		).toThrow("Invalid CMS version");
 		expect(() =>
 			recordCmsBaseline(createEmptyCmsMigrationState(), "0.0.9", dataReleaseCatalog),
-		).toThrow("not present in the installed schema history");
+		).toThrow("not present in the installed package release history");
 	});
 
 	it("rejects a baseline reversal and advancement beyond prepared migrations", () => {
@@ -70,7 +61,7 @@ describe("explicit CMS migration state recording", () => {
 			"cannot move backwards",
 		);
 		expect(() => recordCmsPreparedThrough(state, "0.0.9", dataReleaseCatalog)).toThrow(
-			"not present in the installed schema history",
+			"not present in the installed package release history",
 		);
 	});
 

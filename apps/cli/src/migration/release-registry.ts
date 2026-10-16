@@ -1,16 +1,22 @@
 import { compare, valid } from "semver";
 
-export interface CmsDatabaseChange {
-	kind: "schema" | "data";
-	summary: string;
-	details: string[];
-}
+import type { CmsDatabaseChange, CmsDatabaseRelease } from "./database-changes.js";
+import { validateCmsReleaseHistory, type CmsSchemaHistoryEntry } from "./release-history.js";
+import {
+	cmsDatabaseReleases,
+	cmsPackageVersions,
+	cmsSchemaHistory,
+} from "./release-metadata.generated.js";
+
+export type { CmsDatabaseChange, CmsDatabaseRelease } from "./database-changes.js";
+export { cmsDatabaseReleases } from "./release-metadata.generated.js";
+export type { CmsSchemaHistoryEntry } from "./release-history.js";
 
 export interface CmsSchemaRelease {
 	version: string;
 	schemaId: string;
 	schemaExport: string;
-	changes: CmsDatabaseChange[];
+	changes: readonly CmsDatabaseChange[];
 }
 
 export interface CmsReleaseCatalog {
@@ -18,68 +24,70 @@ export interface CmsReleaseCatalog {
 	releases: CmsSchemaRelease[];
 }
 
-export const cmsSchemaReleases = [
-	{
-		version: "0.0.0",
-		schemaId: "core-schema-v1",
-		schemaExport: "@kyudaisai/cms/db/schema",
-		changes: [],
-	},
-	{
-		version: "0.1.0-alpha.0",
-		schemaId: "core-schema-v1",
-		schemaExport: "@kyudaisai/cms/db/schema",
-		changes: [],
-	},
-	{
-		version: "0.1.0-alpha.1",
-		schemaId: "core-schema-v1",
-		schemaExport: "@kyudaisai/cms/db/schema",
-		changes: [],
-	},
-] satisfies CmsSchemaRelease[];
+export interface CmsReleaseCatalogOptions {
+	packageVersions?: readonly string[];
+	databaseReleases?: readonly CmsDatabaseRelease[];
+	schemaHistory?: readonly CmsSchemaHistoryEntry[];
+}
+
+const publicSchemaExport = "@kyudaisai/cms/db/schema";
+const legacySchemaId = "core-schema-v1";
 
 export function createCmsReleaseCatalog(
 	packageVersion: string,
-	releases: CmsSchemaRelease[] = cmsSchemaReleases,
+	options: CmsReleaseCatalogOptions = {},
 ): CmsReleaseCatalog {
 	const currentVersion = parseVersion(packageVersion);
 	if (!currentVersion) throw new Error(`The CMS package has an invalid version: ${packageVersion}`);
 
-	let previousVersion: string | undefined;
-	let previousRelease: CmsSchemaRelease | undefined;
-	for (const release of releases) {
-		const version = parseVersion(release.version);
-		if (!version || (previousVersion && compare(version, previousVersion) <= 0)) {
-			throw new Error("The CMS schema release registry contains an invalid or unordered version.");
-		}
-		if (!release.schemaId || release.schemaExport !== "@kyudaisai/cms/db/schema") {
-			throw new Error(`The CMS schema release ${release.version} has an invalid schema reference.`);
-		}
-		if (
-			previousRelease &&
-			previousRelease.schemaId !== release.schemaId &&
-			release.changes.length === 0
-		) {
-			throw new Error(
-				`CMS schema release ${release.version} changes schema identity without recording a database change.`,
-			);
-		}
-		previousVersion = version;
-		previousRelease = release;
-	}
+	const history = validateCmsReleaseHistory(
+		options.packageVersions ?? cmsPackageVersions,
+		options.databaseReleases ?? cmsDatabaseReleases,
+		options.schemaHistory ?? cmsSchemaHistory,
+	);
+	const { packageVersions, databaseReleases, schemaHistory } = history;
 
-	const currentIndex = releases.findIndex((release) => release.version === packageVersion);
-	if (currentIndex === -1) {
+	if (!packageVersions.includes(packageVersion)) {
 		throw new Error(
-			`CMS version ${packageVersion} is missing from the database schema release registry.`,
+			`CMS version ${packageVersion} is missing from the package release history generated from the CLI changelog.`,
 		);
 	}
 
-	return {
-		current: releases[currentIndex]!,
-		releases: releases.slice(0, currentIndex + 1),
-	};
+	const databaseReleaseByVersion = new Map(
+		databaseReleases.map((release) => [release.version, release]),
+	);
+	let historyIndex = 0;
+	let activeSchema = schemaHistory[0];
+	const releases: CmsSchemaRelease[] = [];
+
+	for (const version of packageVersions) {
+		if (compare(version, currentVersion) > 0) break;
+
+		while (
+			historyIndex + 1 < schemaHistory.length &&
+			compare(schemaHistory[historyIndex + 1]!.version, version) <= 0
+		) {
+			historyIndex += 1;
+			activeSchema = schemaHistory[historyIndex];
+		}
+
+		if (!activeSchema) throw new Error("The CMS schema history has no initial baseline.");
+		releases.push({
+			version,
+			schemaId: activeSchema.version === "0.0.0" ? legacySchemaId : activeSchema.fingerprint,
+			schemaExport: publicSchemaExport,
+			changes: databaseReleaseByVersion.get(version)?.changes ?? [],
+		});
+	}
+
+	const current = releases.at(-1);
+	if (!current || current.version !== packageVersion) {
+		throw new Error(
+			`CMS version ${packageVersion} is not present in the installed release history.`,
+		);
+	}
+
+	return { current, releases };
 }
 
 export function resolveCmsSchemaRelease(
@@ -95,7 +103,9 @@ export function resolveCmsSchemaRelease(
 	}
 	const release = catalog.releases.find((entry) => entry.version === version);
 	if (!release) {
-		throw new Error(`CMS version ${version} is not present in the installed schema history.`);
+		throw new Error(
+			`CMS version ${version} is not present in the installed package release history.`,
+		);
 	}
 	return release;
 }

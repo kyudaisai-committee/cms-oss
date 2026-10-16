@@ -244,6 +244,29 @@ describe("product release decisions", () => {
 			new URL("./product-release-notes.ts", import.meta.url),
 			join(fixtureScripts, "product-release-notes.ts"),
 		);
+		await copyFile(
+			new URL("./migration-release-metadata.ts", import.meta.url),
+			join(fixtureScripts, "migration-release-metadata.ts"),
+		);
+		await copyFile(
+			new URL("./database-schema-history.ts", import.meta.url),
+			join(fixtureScripts, "database-schema-history.ts"),
+		);
+
+		const fixtureMigration = join(fixtureCli, "src/migration");
+		await mkdir(fixtureMigration, { recursive: true });
+		for (const filename of [
+			"database-changes.ts",
+			"release-history.ts",
+			"release-metadata.generated.ts",
+			"schema-history.json",
+		]) {
+			await copyFile(
+				new URL(`../src/migration/${filename}`, import.meta.url),
+				join(fixtureMigration, filename),
+			);
+		}
+		await copyFile(new URL("../CHANGELOG.md", import.meta.url), join(fixtureCli, "CHANGELOG.md"));
 
 		const manifests = [
 			{ name: "@repo/cli", relativePath: "apps/cli/package.json" },
