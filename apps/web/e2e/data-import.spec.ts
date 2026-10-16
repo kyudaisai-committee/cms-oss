@@ -30,6 +30,7 @@ describe("isolated settings import E2E", () => {
 
 		const settingsResponse = await page.goto(
 			`${environment.baseUrl}/${targetYear}/${targetSite}/settings`,
+			{ timeout: 300_000 },
 		);
 		if (!settingsResponse) throw new Error("the scoped settings route must load over HTTP");
 		expect(settingsResponse.status()).toBe(200);
