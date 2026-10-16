@@ -71,7 +71,7 @@ describe("generated consumer project", () => {
 		expect(await readlink(join(paths.cmsDirectory, "src", "waku.server.ts"))).toBe(
 			join(webSourceDirectory, "waku.server.ts"),
 		);
-		expect(await readlink(join(paths.cmsDirectory, "node_modules", "@repo", "cli"))).toBe(
+		expect(await readlink(join(paths.cmsDirectory, "node_modules", "@kyudaisai", "cms"))).toBe(
 			paths.packageRoot,
 		);
 		expect(await realpath(join(paths.cmsDirectory, "node_modules", "@oclif", "core"))).toBe(

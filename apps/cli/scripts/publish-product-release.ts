@@ -47,6 +47,10 @@ interface CmsReleaseRegistryModule {
 	createCmsReleaseCatalog(packageVersion: string): unknown;
 }
 
+function productArchiveName(version: string): string {
+	return `kyudaisai-cms-${version}.tgz`;
+}
+
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../");
 const packageManifests = [
 	{ name: "@repo/cli", relativePath: "apps/cli/package.json" },
@@ -107,7 +111,7 @@ export async function publishProductRelease({
 	if (!releaseNotes.trim()) {
 		throw new Error(`Generated Changesets release notes are missing for ${version}.`);
 	}
-	const assetName = `repo-cli-${version}.tgz`;
+	const assetName = productArchiveName(version);
 	let plan = planProductRelease(version, undefined, assetName);
 	if (plan.action === "skip") return "skipped";
 	if (typeof githubSha !== "string" || !/^[0-9a-f]{40}$/i.test(githubSha)) {
@@ -293,7 +297,7 @@ function runGh(arguments_: string[]): GitHubCliResult {
 
 async function main(): Promise<void> {
 	const version = readProductVersion();
-	const initialPlan = planProductRelease(version, undefined, `repo-cli-${version}.tgz`);
+	const initialPlan = planProductRelease(version, undefined, productArchiveName(version));
 	if (initialPlan.action === "skip") {
 		console.log("Skipping product release for the unpublished 0.0.0 development version.");
 		return;
@@ -308,7 +312,7 @@ async function main(): Promise<void> {
 	releaseRegistryModule.createCmsReleaseCatalog(version);
 
 	const destination = resolve(repositoryRoot, process.argv[2] ?? "dist/release");
-	const assetName = `repo-cli-${version}.tgz`;
+	const assetName = productArchiveName(version);
 	const assetPath = join(destination, assetName);
 	if (!existsSync(assetPath)) throw new Error(`Product archive does not exist: ${assetPath}`);
 	if (basename(assetPath) !== assetName) {

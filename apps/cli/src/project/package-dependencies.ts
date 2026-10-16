@@ -25,7 +25,7 @@ export async function linkProductDependencies(
 		join(packageRoot, "node_modules", ".bin"),
 		join(generatedModulesDirectory, ".bin"),
 	);
-	await createDependencyLink(packageRoot, join(generatedModulesDirectory, "@repo", "cli"));
+	await createDependencyLink(packageRoot, join(generatedModulesDirectory, "@kyudaisai", "cms"));
 }
 
 function resolveDependency(dependencyName: string, packageRoot: string): string {
