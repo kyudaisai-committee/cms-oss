@@ -1,5 +1,15 @@
 # @repo/web
 
+## 0.1.0-alpha.2
+
+### Patch Changes
+
+- 16f9e6a: 製品 tarball でも Tailwind がインストール済みの Kumo と editor のスタイルを生成できるようにします。
+- @repo/api@0.1.0-alpha.2
+    - @repo/config@0.1.0-alpha.2
+    - @repo/core@0.1.0-alpha.2
+    - @repo/editor@0.1.0-alpha.2
+
 ## 0.1.0-alpha.1
 
 ### Patch Changes

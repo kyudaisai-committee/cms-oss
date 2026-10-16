@@ -1,5 +1,13 @@
 # @repo/cli
 
+## 0.1.0-alpha.2
+
+### Patch Changes
+
+- aa75637: CMS の製品バージョンと DB の変更履歴を分離し、DB に変更がないバージョン更新でスキーマ情報を手動登録する必要をなくします。実際のスキーマと記録済み snapshot の一致を配布前に検証します。
+- @repo/config@0.1.0-alpha.2
+    - @repo/core@0.1.0-alpha.2
+
 ## 0.1.0-alpha.1
 
 ### Patch Changes
