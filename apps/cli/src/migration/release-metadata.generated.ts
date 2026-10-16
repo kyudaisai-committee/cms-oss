@@ -1,4 +1,9 @@
-export const cmsPackageVersions = ["0.0.0", "0.1.0-alpha.0", "0.1.0-alpha.1"] as const;
+export const cmsPackageVersions = [
+	"0.0.0",
+	"0.1.0-alpha.0",
+	"0.1.0-alpha.1",
+	"0.1.0-alpha.2",
+] as const;
 
 export const cmsDatabaseReleases = [] as const;
 
