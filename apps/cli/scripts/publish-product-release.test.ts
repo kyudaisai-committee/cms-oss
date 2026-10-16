@@ -23,7 +23,7 @@ interface GitHubCliResult {
 }
 
 const version = "0.1.0-alpha.0";
-const assetName = `repo-cli-${version}.tgz`;
+const assetName = `kyudaisai-cms-${version}.tgz`;
 const githubSha = "1234567890abcdef1234567890abcdef12345678";
 const releaseNotes = "### Minor Changes\n\n- Initial CMS product release.";
 
@@ -101,7 +101,7 @@ function getCall(calls: string[][], index: number): string[] {
 
 describe("product release decisions", () => {
 	it("skips the unpublished development version", () => {
-		expect(planProductRelease("0.0.0", undefined, "repo-cli-0.0.0.tgz")).toEqual({
+		expect(planProductRelease("0.0.0", undefined, "kyudaisai-cms-0.0.0.tgz")).toEqual({
 			action: "skip",
 			prerelease: false,
 			tagName: "v0.0.0",
@@ -109,7 +109,7 @@ describe("product release decisions", () => {
 	});
 
 	it("marks stable SemVer versions as regular Releases", () => {
-		expect(planProductRelease("1.0.0", undefined, "repo-cli-1.0.0.tgz")).toEqual({
+		expect(planProductRelease("1.0.0", undefined, "kyudaisai-cms-1.0.0.tgz")).toEqual({
 			action: "create",
 			prerelease: false,
 			tagName: "v1.0.0",

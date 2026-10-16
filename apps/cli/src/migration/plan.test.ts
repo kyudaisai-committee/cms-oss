@@ -21,19 +21,19 @@ describe("CMS migration plan", () => {
 			{
 				version: "0.1.0",
 				schemaId: "core-schema-v1",
-				schemaExport: "@repo/cli/db/schema",
+				schemaExport: "@kyudaisai/cms/db/schema",
 				changes: [],
 			},
 			{
 				version: "0.1.1",
 				schemaId: "core-schema-v1",
-				schemaExport: "@repo/cli/db/schema",
+				schemaExport: "@kyudaisai/cms/db/schema",
 				changes: [{ kind: "data", summary: "Normalize slugs", details: ["Keep existing IDs."] }],
 			},
 			{
 				version: "0.2.0",
 				schemaId: "core-schema-v2",
-				schemaExport: "@repo/cli/db/schema",
+				schemaExport: "@kyudaisai/cms/db/schema",
 				changes: [
 					{
 						kind: "schema",
@@ -80,13 +80,13 @@ describe("CMS migration plan", () => {
 			{
 				version: "0.1.0",
 				schemaId: "schema-v1",
-				schemaExport: "@repo/cli/db/schema",
+				schemaExport: "@kyudaisai/cms/db/schema",
 				changes: [],
 			},
 			{
 				version: "0.2.0",
 				schemaId: "schema-v2",
-				schemaExport: "@repo/cli/db/schema",
+				schemaExport: "@kyudaisai/cms/db/schema",
 				changes: [],
 			},
 		];
@@ -101,13 +101,13 @@ describe("CMS migration plan", () => {
 			{
 				version: "0.1.0",
 				schemaId: "schema-v1",
-				schemaExport: "@repo/cli/db/schema",
+				schemaExport: "@kyudaisai/cms/db/schema",
 				changes: [],
 			},
 			{
 				version: "0.2.0",
 				schemaId: "schema-v1",
-				schemaExport: "@repo/cli/db/schema",
+				schemaExport: "@kyudaisai/cms/db/schema",
 				changes: [],
 			},
 		];

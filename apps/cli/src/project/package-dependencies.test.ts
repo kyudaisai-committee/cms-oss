@@ -34,7 +34,7 @@ describe("linkProductDependencies", () => {
 		);
 		expect(
 			await readFile(
-				join(generatedDirectory, "node_modules", "@repo", "cli", "package.json"),
+				join(generatedDirectory, "node_modules", "@kyudaisai", "cms", "package.json"),
 				"utf8",
 			),
 		).toBe(await readFile(join(packageRoot, "package.json"), "utf8"));

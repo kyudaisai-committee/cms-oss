@@ -8,19 +8,19 @@ const dataReleaseCatalog = createCmsReleaseCatalog("0.1.2", [
 	{
 		version: "0.1.0",
 		schemaId: "core-schema-v1",
-		schemaExport: "@repo/cli/db/schema",
+		schemaExport: "@kyudaisai/cms/db/schema",
 		changes: [],
 	},
 	{
 		version: "0.1.1",
 		schemaId: "core-schema-v1",
-		schemaExport: "@repo/cli/db/schema",
+		schemaExport: "@kyudaisai/cms/db/schema",
 		changes: [{ kind: "data", summary: "Normalize slugs", details: ["Keep IDs."] }],
 	},
 	{
 		version: "0.1.2",
 		schemaId: "core-schema-v1",
-		schemaExport: "@repo/cli/db/schema",
+		schemaExport: "@kyudaisai/cms/db/schema",
 		changes: [],
 	},
 ] satisfies CmsSchemaRelease[]);

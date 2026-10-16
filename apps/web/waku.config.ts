@@ -89,11 +89,10 @@ export function createCmsWakuConfig(config?: CmsConfig, wranglerConfigPath?: str
 					optimizeDeps: { exclude: ["lucide-react"] },
 				},
 				rsc: {
-					optimizeDeps: { noDiscovery: true, exclude: ["lucide-react"] },
+					optimizeDeps: { exclude: ["lucide-react"] },
 					build: { rolldownOptions: { platform: "neutral" } },
 				},
 				ssr: {
-					optimizeDeps: { noDiscovery: true },
 					build: { rolldownOptions: { platform: "neutral" } },
 				},
 			},

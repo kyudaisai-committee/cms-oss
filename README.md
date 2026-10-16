@@ -35,7 +35,7 @@ pnpm changeset:version
 
 初回変更は minor changeset で、alpha prerelease mode を有効にしているため、6 package は `0.0.0` から `0.1.0-alpha.0` になります。`changeset:version` は package version を更新し、pnpm lockfile を再生成します。新しい prerelease cycle は `pnpm changeset pre enter alpha` で開始し、終了時に `pnpm changeset pre exit` を実行します。
 
-main への push を契機に、GitHub Actions が Changesets の version PR を作成または更新します。その PR の merge 後は、全 workspace の検証と製品 CLI の pack を行い、`v<version>` GitHub Release を作成して `repo-cli-<version>.tgz` を添付します。SemVer prerelease は GitHub の pre-release として公開し、npm registry へは publish しません。未公開の `0.0.0` は skip し、同じ version の Release と asset が既にあれば何も変更しません。公開済み Release の asset が欠けている場合は workflow を失敗させ、既存 Release を置き換えません。
+main への push を契機に、GitHub Actions が Changesets の version PR を作成または更新します。その PR の merge 後は、全 workspace の検証と製品 CLI の pack を行い、`v<version>` GitHub Release を作成して `kyudaisai-cms-<version>.tgz` を添付します。SemVer prerelease は GitHub の pre-release として公開し、npm registry へは publish しません。未公開の `0.0.0` は skip し、同じ version の Release と asset が既にあれば何も変更しません。公開済み Release の asset が欠けている場合は workflow を失敗させ、既存 Release を置き換えません。
 
 DBに影響するchangesetには、対象version、変更前後のschema、データ変換・既定値・重複や欠損値の扱い、保持・削除されるID/関係/値、適用順序と適用を省略できる条件、適用後の確認方法を記載します。生成された詳細は各packageの `CHANGELOG.md` と製品tarball内の `changelogs/` に残します。GitHub Releaseのノートには対象versionの説明を載せ、package名の見出しは追加しません。
 
@@ -82,7 +82,23 @@ CMS と利用側プロジェクトの責任分担は次のとおりです。
 
 migration は利用側プロジェクトで生成・検証し、利用側が適用するタイミングを決めます。CMS の依存更新によって、利用側の設定や migration 履歴を上書き・初期化しません。`cms init` が生成する `.cms/` には再生成可能な接続ファイルだけを置き、migration 履歴やローカル D1/R2 の永続状態は含めません。
 
-利用側プロジェクトでは、GitHub Releases の製品 tarball の URL を指定して `pnpm add 'https://github.com/kyudaisai-committee/cms-oss/releases/download/<tag>/repo-cli-<version>.tgz'` を実行します。`<tag>` と `<version>` は公開済み Release と製品 asset の値に置き換えてください。現在は公開 Release がないため、この URL は形式を示す例です。利用側でリポジトリを clone・build・pack する必要はありません。
+利用側プロジェクトでは、GitHub Releases の製品 tarball の URL を指定して `pnpm add 'https://github.com/kyudaisai-committee/cms-oss/releases/download/<tag>/kyudaisai-cms-<version>.tgz'` を実行します。`<tag>` と `<version>` は公開済み Release と製品 asset の値に置き換えてください。新しい公開 package 名 `@kyudaisai/cms` は次の製品 Release から利用できます。利用側でリポジトリを clone・build・pack する必要はありません。
+
+既存の `@repo/cli` 製品（`v0.1.0-alpha.0` の `repo-cli-0.1.0-alpha.0.tgz` を含む）を使っているプロジェクトは、その Release を変更せず、次の製品 Release から公開する `@kyudaisai/cms` へ切り替えてください。alpha.0 の依存を削除して新しい tarball を追加し、設定ファイルの import を更新した後、`.cms/` の生成物を作り直します。
+
+```sh
+pnpm remove @repo/cli
+pnpm add 'https://github.com/kyudaisai-committee/cms-oss/releases/download/v<next-version>/kyudaisai-cms-<next-version>.tgz'
+```
+
+`<next-version>` は次の製品 Release の version に置き換えてください。`cms.config.ts` と `drizzle.config.ts` の import を `@kyudaisai/cms/config` に置き換えた後、利用側アプリと Worker 型を再生成します。
+
+```sh
+pnpm exec cms init
+pnpm exec cms typegen
+```
+
+この更新は package 名の変更だけで、D1 のデータ、schema、migration SQL、Drizzle 履歴、CMS migration state を変更する必要はありません。`schemaId` は `core-schema-v1` のままです。
 
 配布物を手元で作成する場合は、リポジトリのルートで `pnpm run pack:product --pack-destination /tmp/cms-product` を実行します。このコマンドは workspace の build と製品の組立を行ってから pack します。GitHub Actions の Release workflow もこのコマンドで生成した `.tgz` を Release asset として添付します。GitHub が自動生成する Source code アーカイブとは別の成果物です。npm registry への公開は含みません。
 
@@ -101,7 +117,7 @@ allowBuilds:
 `cms.config.ts` では、既存の Wrangler 設定を参照できます。Worker / D1 / R2 / Access の設定を重ねて記述する必要はありません。
 
 ```ts
-import { defineConfig } from "@repo/cli/config";
+import { defineConfig } from "@kyudaisai/cms/config";
 
 export default defineConfig({
     name: "お知らせ CMS",
@@ -123,7 +139,7 @@ pnpm exec tsc --noEmit -p .cms/tsconfig.json
 `drizzle.config.ts` では、配布物が公開する現行 schema を ESM で参照できます。
 
 ```ts
-import { cmsSchemaPath } from "@repo/cli/config";
+import { cmsSchemaPath } from "@kyudaisai/cms/config";
 
 export default {
     dialect: "sqlite",

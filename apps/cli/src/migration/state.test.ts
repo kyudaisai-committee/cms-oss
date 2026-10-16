@@ -77,7 +77,7 @@ describe("CMS migration state", () => {
 		].map((version) => ({
 			version,
 			schemaId: "core-schema-v1",
-			schemaExport: "@repo/cli/db/schema",
+			schemaExport: "@kyudaisai/cms/db/schema",
 			changes: [],
 		}));
 		const catalog = createCmsReleaseCatalog("0.1.0", releases);
@@ -97,13 +97,13 @@ describe("CMS migration state", () => {
 			{
 				version: "0.1.0",
 				schemaId: "core-schema-v1",
-				schemaExport: "@repo/cli/db/schema",
+				schemaExport: "@kyudaisai/cms/db/schema",
 				changes: [],
 			},
 			{
 				version: "0.1.1",
 				schemaId: "core-schema-v1",
-				schemaExport: "@repo/cli/db/schema",
+				schemaExport: "@kyudaisai/cms/db/schema",
 				changes: [{ kind: "data", summary: "Normalize old values", details: ["Preserve IDs."] }],
 			},
 		];
