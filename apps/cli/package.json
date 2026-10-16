@@ -26,7 +26,8 @@
 	"scripts": {
 		"build": "tsc -p tsconfig.build.json",
 		"typecheck": "tsc --noEmit -p tsconfig.json",
-		"test": "vitest run"
+		"test": "vitest run --exclude scripts/product-consumer-typecheck.test.ts",
+		"test:product-consumer": "vitest run scripts/product-consumer-typecheck.test.ts"
 	},
 	"dependencies": {
 		"@oclif/core": "^5.1.7",

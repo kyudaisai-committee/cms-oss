@@ -33,6 +33,17 @@ describe("generated consumer project", () => {
 		await generateCmsProject(paths);
 
 		expect((await lstat(sourceDirectory)).isSymbolicLink()).toBe(false);
+		expect(
+			JSON.parse(await readFile(join(paths.cmsDirectory, "package.json"), "utf8")),
+		).toMatchObject({
+			imports: { "#web/*": "./src/*" },
+		});
+		expect(
+			JSON.parse(await readFile(join(paths.cmsDirectory, "tsconfig.json"), "utf8")),
+		).toMatchObject({
+			compilerOptions: { paths: { "#web/*": ["./src/*"] } },
+			include: expect.arrayContaining(["worker-configuration.d.ts"]),
+		});
 		await expect(access(join(sourceDirectory, "pages.gen.ts"))).rejects.toMatchObject({
 			code: "ENOENT",
 		});

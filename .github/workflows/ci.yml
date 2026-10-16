@@ -31,3 +31,6 @@ jobs:
 
       - name: Run cspell
         run: pnpm exec cspell .
+
+      - name: Run product consumer typecheck regression
+        run: pnpm --filter @repo/cli run test:product-consumer
