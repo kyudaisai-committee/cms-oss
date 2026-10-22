@@ -174,6 +174,31 @@ describe("CmsService news translations", () => {
 		expect(unchangedJapanese.title).toBe("日本語のお知らせ");
 	});
 
+	it("returns the language updated through a parent ID", async () => {
+		const service = await createTestService();
+		const japanese = await service.createNews(newsInput("ja", "日本語のお知らせ"));
+		await service.createNewsTranslation(japanese.id, "en", {
+			title: "English notice",
+			contentType: "markdown",
+			content: "English notice content",
+		});
+
+		const updatedEnglish = await service.updateNews(japanese.id, {
+			lang: "en",
+			title: "Updated English notice",
+			contentType: "markdown",
+			content: "Updated English content",
+		});
+		const persistedEnglish = await service.getAdminNews(japanese.id, "en");
+		const unchangedJapanese = await service.getAdminNews(japanese.id, "ja");
+
+		expect(updatedEnglish.lang).toBe("en");
+		expect(updatedEnglish.title).toBe("Updated English notice");
+		expect(updatedEnglish.content).toBe("Updated English content");
+		expect(persistedEnglish.title).toBe("Updated English notice");
+		expect(unchangedJapanese.title).toBe("日本語のお知らせ");
+	});
+
 	it("distinguishes a missing language from the parent default translation", async () => {
 		const service = await createTestService();
 		const japanese = await service.createNews(newsInput("ja", "日本語のお知らせ"));
