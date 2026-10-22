@@ -43,6 +43,18 @@ export default defineConfig({
 					},
 				},
 			},
+			{
+				test: {
+					name: "news-form-browser",
+					include: ["e2e/news-form.spec.tsx"],
+					browser: {
+						enabled: true,
+						headless: true,
+						provider: browserProvider,
+						instances: [{ browser: "chromium" }],
+					},
+				},
+			},
 		],
 	},
 });
