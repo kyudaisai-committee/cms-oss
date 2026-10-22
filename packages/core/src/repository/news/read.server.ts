@@ -15,29 +15,44 @@ type NewsRecord = InferSelectModel<typeof news>;
 type NewsTranslationRecord = InferSelectModel<typeof newsTranslations>;
 type TagRecord = InferSelectModel<typeof tags>;
 
+const NEWS_IDS_PER_QUERY = 100;
+
+function splitIntoChunks<T>(values: T[], size: number): T[][] {
+	const chunks: T[][] = [];
+	for (let offset = 0; offset < values.length; offset += size) {
+		chunks.push(values.slice(offset, offset + size));
+	}
+	return chunks;
+}
+
 export class NewsReadRepository {
 	constructor(private readonly database: Database) {}
 
 	private async tagsForNewsIds(newsIds: string[]) {
 		if (newsIds.length === 0) return new Map<string, TagRecord[]>();
-		const rows = await this.database
-			.select({ newsId: newsTags.newsId, tag: tags })
-			.from(newsTags)
-			.innerJoin(tags, eq(newsTags.tagId, tags.id))
-			.where(and(inArray(newsTags.newsId, newsIds), isNull(tags.deletedAt)));
 		const grouped = new Map<string, TagRecord[]>();
-		for (const row of rows) grouped.set(row.newsId, [...(grouped.get(row.newsId) ?? []), row.tag]);
+		for (const chunk of splitIntoChunks(newsIds, NEWS_IDS_PER_QUERY)) {
+			const rows = await this.database
+				.select({ newsId: newsTags.newsId, tag: tags })
+				.from(newsTags)
+				.innerJoin(tags, eq(newsTags.tagId, tags.id))
+				.where(and(inArray(newsTags.newsId, chunk), isNull(tags.deletedAt)));
+			for (const row of rows)
+				grouped.set(row.newsId, [...(grouped.get(row.newsId) ?? []), row.tag]);
+		}
 		return grouped;
 	}
 
 	private async translationsForNewsIds(newsIds: string[]) {
 		if (newsIds.length === 0) return new Map<string, NewsTranslationRecord[]>();
-		const rows = await this.database
-			.select()
-			.from(newsTranslations)
-			.where(and(inArray(newsTranslations.newsId, newsIds), isNull(newsTranslations.deletedAt)));
 		const grouped = new Map<string, NewsTranslationRecord[]>();
-		for (const row of rows) grouped.set(row.newsId, [...(grouped.get(row.newsId) ?? []), row]);
+		for (const chunk of splitIntoChunks(newsIds, NEWS_IDS_PER_QUERY)) {
+			const rows = await this.database
+				.select()
+				.from(newsTranslations)
+				.where(and(inArray(newsTranslations.newsId, chunk), isNull(newsTranslations.deletedAt)));
+			for (const row of rows) grouped.set(row.newsId, [...(grouped.get(row.newsId) ?? []), row]);
+		}
 		return grouped;
 	}
 
