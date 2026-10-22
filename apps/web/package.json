@@ -12,7 +12,7 @@
 		"start": "waku start",
 		"deploy": "wrangler deploy",
 		"typegen": "waku router typegen && wrangler types",
-		"typecheck": "tsc --noEmit -p tsconfig.json",
+		"typecheck": "tsrs --noEmit -p tsconfig.json",
 		"test": "vitest run",
 		"test:e2e": "vitest run --config vitest.e2e.config.ts"
 	},

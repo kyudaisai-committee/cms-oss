@@ -21,7 +21,7 @@ Waku のアプリ本体、Worker entry、開発用 Wrangler 設定と deploy は
 
 開発時は Cloudflare の `workerd` が `eval()` を許可しないため、React の RSC client が stack trace 再構築用に試す `eval()` が警告になります。開発時の stack trace 再構築は制限されますが、React は本番ではこの `eval()` を使用しません。
 
-`pnpm verify` は formatter、lint、全 package の TypeScript 検査・Vitest、Waku build を順番に実行します。リポジトリ内の Worker deploy は Cloudflare リソースを用意し、`apps/web/wrangler.toml` の例示値を置き換えた後に `pnpm --filter @repo/web run deploy` で実行します。利用側からは CMS CLI の `cms deploy` を使えます。どちらも Worker の build/deploy のみを行い、DB migration は適用しません。
+`pnpm verify` は formatter、lint、tsrs による全 package の型検査、Vitest、各 package の build（Waku build を含む）を順番に実行します。tsrs は TypeScript 7 の Rust 移植を試験採用しており、利用側の生成アプリを検査する製品 consumer test では TypeScript 7 の `tsc` も引き続き検証します。リポジトリ内の Worker deploy は Cloudflare リソースを用意し、`apps/web/wrangler.toml` の例示値を置き換えた後に `pnpm --filter @repo/web run deploy` で実行します。利用側からは CMS CLI の `cms deploy` を使えます。どちらも Worker の build/deploy のみを行い、DB migration は適用しません。
 
 ## バージョン管理
 
