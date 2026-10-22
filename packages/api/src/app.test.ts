@@ -93,6 +93,15 @@ describe("CMS API boundaries", () => {
 		});
 	});
 
+	it("exposes the public detail QUERY operation through the typed client", () => {
+		const query = createApiClient()[":year"][":site"].news[":slug"].$query;
+		expect(query).toBeTypeOf("function");
+		expectTypeOf(query).toBeCallableWith({
+			param: { year: 2026, site: "festival", slug: "hello" },
+			json: { lang: "en" },
+		});
+	});
+
 	it("exposes scoped import preview and commit operations through the typed client", () => {
 		const client = createApiClient().admin[":year"][":site"];
 		const importKey: keyof typeof client = "import";
@@ -143,6 +152,19 @@ describe("CMS API boundaries", () => {
 		);
 		for (const parameter of publicNewsPath?.query?.parameters ?? []) {
 			expect(["tag", "cursor", "limit"]).not.toContain(parameter.name);
+		}
+		const publicNewsDetailPath = document.paths["/{year}/{site}/news/{slug}"];
+		expect(publicNewsDetailPath).toEqual(
+			expect.objectContaining({ get: expect.anything(), query: expect.anything() }),
+		);
+		expect(publicNewsDetailPath?.query?.requestBody).toEqual(
+			expect.objectContaining({
+				required: true,
+				content: { "application/json": expect.anything() },
+			}),
+		);
+		for (const parameter of publicNewsDetailPath?.query?.parameters ?? []) {
+			expect(parameter.name).not.toBe("lang");
 		}
 		expect(Object.keys(document.paths).some((path) => path.startsWith("/admin/"))).toBe(false);
 		expect(document.security).toBeUndefined();
