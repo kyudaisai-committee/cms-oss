@@ -198,28 +198,24 @@ export async function runReleaseWorkflow(
 	};
 	await writeFile(statePath, JSON.stringify(state));
 
-	const result = spawnSync(
-		"/bin/bash",
-		["--noprofile", "--norc", "-e", "-u", "-o", "pipefail", "-c", findReleaseStep()],
-		{
-			cwd: repositoryRoot,
-			encoding: "utf8",
-			env: {
-				...process.env,
-				PATH: `${binDirectory}${delimiter}${process.env.PATH ?? ""}`,
-				CMS_RELEASE_FIXTURE_STATE: statePath,
-				GITHUB_REPOSITORY: "owner/repo",
-				GITHUB_SHA: options.githubSha ?? releaseGithubSha,
-				RELEASE_VERSION: selectedVersion,
-				RELEASE_TAG_NAME: `v${selectedVersion}`,
-				RELEASE_ASSET_NAME: assetName,
-				RELEASE_ASSET_PATH: assetPath,
-				RELEASE_NOTES_PATH: notesPath,
-				RELEASE_PRERELEASE: String(options.prerelease ?? true),
-				RELEASE_SKIP: String(options.skip ?? false),
-			},
+	const result = spawnSync("/bin/bash", ["-c", findReleaseStep()], {
+		cwd: repositoryRoot,
+		encoding: "utf8",
+		env: {
+			...process.env,
+			PATH: `${binDirectory}${delimiter}${process.env.PATH ?? ""}`,
+			CMS_RELEASE_FIXTURE_STATE: statePath,
+			GITHUB_REPOSITORY: "owner/repo",
+			GITHUB_SHA: options.githubSha ?? releaseGithubSha,
+			RELEASE_VERSION: selectedVersion,
+			RELEASE_TAG_NAME: `v${selectedVersion}`,
+			RELEASE_ASSET_NAME: assetName,
+			RELEASE_ASSET_PATH: assetPath,
+			RELEASE_NOTES_PATH: notesPath,
+			RELEASE_PRERELEASE: String(options.prerelease ?? true),
+			RELEASE_SKIP: String(options.skip ?? false),
 		},
-	);
+	});
 
 	const parsedState: unknown = JSON.parse(await readFile(statePath, "utf8"));
 	if (!isFakeGitHubState(parsedState)) throw new Error("The fake GitHub state is invalid.");
