@@ -60,7 +60,93 @@ jobs:
         run: pnpm verify
       - name: Pack product CLI
         run: pnpm pack:product --pack-destination dist/release
+      - name: Prepare product Release metadata
+        id: product-release
+        run: pnpm exec node apps/cli/scripts/prepare-product-release.ts dist/release
       - name: Create or update GitHub Release
+        if: steps.product-release.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: pnpm exec node apps/cli/scripts/publish-product-release.ts dist/release
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+          RELEASE_VERSION: ${{ steps.product-release.outputs.version }}
+          RELEASE_TAG_NAME: ${{ steps.product-release.outputs.tag_name }}
+          RELEASE_ASSET_NAME: ${{ steps.product-release.outputs.asset_name }}
+          RELEASE_ASSET_PATH: ${{ steps.product-release.outputs.asset_path }}
+          RELEASE_NOTES_PATH: ${{ steps.product-release.outputs.release_notes_path }}
+          RELEASE_PRERELEASE: ${{ steps.product-release.outputs.prerelease }}
+          RELEASE_SKIP: ${{ steps.product-release.outputs.skip }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$RELEASE_SKIP" == "true" ]]; then
+            echo "Skipping product release for the unpublished 0.0.0 development version."
+            exit 0
+          fi
+
+          if [[ "$RELEASE_TAG_NAME" != "v$RELEASE_VERSION" ]]; then
+            echo "Release tag does not match the product version." >&2
+            exit 1
+          fi
+          if [[ "$RELEASE_PRERELEASE" != "true" && "$RELEASE_PRERELEASE" != "false" ]]; then
+            echo "Release prerelease status is invalid." >&2
+            exit 1
+          fi
+          if [[ ! "$GITHUB_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "GITHUB_SHA must contain the full commit SHA for the Release tag." >&2
+            exit 1
+          fi
+          if [[ "$(basename "$RELEASE_ASSET_PATH")" != "$RELEASE_ASSET_NAME" || ! -f "$RELEASE_ASSET_PATH" ]]; then
+            echo "Product archive is missing or does not match its expected name." >&2
+            exit 1
+          fi
+          if [[ ! -s "$RELEASE_NOTES_PATH" ]]; then
+            echo "Generated Changesets release notes are missing." >&2
+            exit 1
+          fi
+
+          releases="$(gh api --paginate --jq '.[]' "/repos/$GITHUB_REPOSITORY/releases?per_page=100" | jq -s --arg tag "$RELEASE_TAG_NAME" '[.[] | select(.tag_name == $tag)][0] // null')"
+          if [[ "$releases" == "null" ]]; then
+            create_arguments=(release create "$RELEASE_TAG_NAME" --draft --target "$GITHUB_SHA" --title "CMS CLI $RELEASE_VERSION" --notes-file "$RELEASE_NOTES_PATH")
+            if [[ "$RELEASE_PRERELEASE" == "true" ]]; then
+              create_arguments+=(--prerelease)
+            fi
+            gh "${create_arguments[@]}"
+            gh release upload "$RELEASE_TAG_NAME" "$RELEASE_ASSET_PATH"
+            gh release edit "$RELEASE_TAG_NAME" --draft=false
+            echo "Published $RELEASE_TAG_NAME."
+            exit 0
+          fi
+
+          if ! jq -e '(.draft | type == "boolean") and (.prerelease | type == "boolean") and (.target_commitish | type == "string") and (.assets | type == "array") and all(.assets[]; .name | type == "string")' <<< "$releases" >/dev/null; then
+            echo "GitHub Release $RELEASE_TAG_NAME has an invalid response." >&2
+            exit 1
+          fi
+          if [[ "$(jq -r '.prerelease' <<< "$releases")" != "$RELEASE_PRERELEASE" ]]; then
+            echo "GitHub Release $RELEASE_TAG_NAME has a prerelease status that does not match SemVer." >&2
+            exit 1
+          fi
+
+          is_draft="$(jq -r '.draft' <<< "$releases")"
+          target_commitish="$(jq -r '.target_commitish' <<< "$releases")"
+          target_commitish_lower="$(printf '%s' "$target_commitish" | tr '[:upper:]' '[:lower:]')"
+          github_sha_lower="$(printf '%s' "$GITHUB_SHA" | tr '[:upper:]' '[:lower:]')"
+          if [[ "$is_draft" == "true" && "$target_commitish_lower" != "$github_sha_lower" ]]; then
+            echo "Draft GitHub Release $RELEASE_TAG_NAME targets $target_commitish; expected $GITHUB_SHA." >&2
+            exit 1
+          fi
+
+          has_asset="$(jq -r --arg asset "$RELEASE_ASSET_NAME" 'any(.assets[]; .name == $asset)' <<< "$releases")"
+          if [[ "$is_draft" != "true" && "$has_asset" != "true" ]]; then
+            echo "Published GitHub Release $RELEASE_TAG_NAME is missing $RELEASE_ASSET_NAME; refusing to modify it." >&2
+            exit 1
+          fi
+          if [[ "$has_asset" != "true" ]]; then
+            gh release upload "$RELEASE_TAG_NAME" "$RELEASE_ASSET_PATH"
+          fi
+          if [[ "$is_draft" == "true" ]]; then
+            gh release edit "$RELEASE_TAG_NAME" --draft=false
+            echo "Published $RELEASE_TAG_NAME."
+          else
+            echo "Skipped $RELEASE_TAG_NAME."
+          fi
