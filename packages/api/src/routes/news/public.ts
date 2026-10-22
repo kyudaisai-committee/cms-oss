@@ -85,6 +85,31 @@ const publicDetail = createRoute({
 	},
 });
 
+const publicDetailQuery = createRoute({
+	method: "query",
+	path: "/{year}/{site}/news/{slug}",
+	request: {
+		params: scopeRefSchema.extend({ slug: newsSlugSchema }),
+		body: {
+			required: true,
+			content: { "application/json": { schema: publicDetailQuerySchema } },
+		},
+	},
+	responses: {
+		...apiErrorResponses,
+		200: {
+			description: "Published news",
+			content: {
+				"application/json": { schema: apiEnvelopeSchema(publishedNewsDtoSchema) },
+			},
+		},
+		404: {
+			description: "News not found",
+			content: { "application/json": { schema: apiErrorEnvelopeSchema } },
+		},
+	},
+});
+
 async function listPublishedNews(
 	c:
 		| Parameters<RouteHandler<typeof publicList, ApiEnv>>[0]
@@ -118,6 +143,17 @@ function publicQueryHandler(
 	return listPublishedNews(c, c.req.valid("json"), noStoreHeaders);
 }
 
+async function getPublishedNews(
+	c:
+		| Parameters<RouteHandler<typeof publicDetail, ApiEnv>>[0]
+		| Parameters<RouteHandler<typeof publicDetailQuery, ApiEnv>>[0],
+	slug: string,
+	lang: string | undefined,
+	headers: typeof noStoreHeaders | ReturnType<typeof publicNewsCacheHeaders>,
+) {
+	return c.json(envelope(await requireService(c).getPublishedNews(slug, lang)), 200, headers);
+}
+
 export const publicNewsRoutes = new OpenAPIHono<ApiEnv>()
 	.openapi(publicList, publicListHandler, (result, c) => {
 		if (!result.success) return validationErrorResponse(c, result.error);
@@ -125,17 +161,16 @@ export const publicNewsRoutes = new OpenAPIHono<ApiEnv>()
 	.openapi(publicQuery, publicQueryHandler, (result, c) => {
 		if (!result.success) return validationErrorResponse(c, result.error);
 	})
-	.openapi(publicDetail, async (c) =>
-		c.json(
-			envelope(
-				await requireService(c).getPublishedNews(
-					c.req.valid("param").slug,
-					c.req.valid("query").lang,
-				),
-			),
-			200,
+	.openapi(publicDetail, (c) =>
+		getPublishedNews(
+			c,
+			c.req.valid("param").slug,
+			c.req.valid("query").lang,
 			publicNewsCacheHeaders(c.req.valid("param")),
 		),
+	)
+	.openapi(publicDetailQuery, (c) =>
+		getPublishedNews(c, c.req.valid("param").slug, c.req.valid("json").lang, noStoreHeaders),
 	);
 
 publicNewsRoutes.on(["POST", "PUT", "PATCH", "DELETE", "OPTIONS"], "/:year/:site/news", (c) =>
