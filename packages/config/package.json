@@ -13,8 +13,8 @@
 		".": "./src/index.ts"
 	},
 	"scripts": {
-		"build": "tsc -p tsconfig.json --noEmit false --declaration false --rootDir src --outDir dist",
-		"typecheck": "tsc --noEmit -p tsconfig.json",
+		"build": "tsrs -p tsconfig.json --noEmit false --declaration false --rootDir src --outDir dist",
+		"typecheck": "tsrs --noEmit -p tsconfig.json",
 		"test": "vitest run"
 	},
 	"dependencies": {
@@ -23,7 +23,6 @@
 	"devDependencies": {
 		"@cloudflare/vite-plugin": "^1.63.1",
 		"@types/node": "^26.6.5",
-		"typescript": "^7.0.2",
 		"vitest": "^5.0.3"
 	}
 }

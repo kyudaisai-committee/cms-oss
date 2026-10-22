@@ -13,8 +13,8 @@
 		".": "./src/index.ts"
 	},
 	"scripts": {
-		"build": "tsc -p tsconfig.json --noEmit false --declaration false --rootDir src --outDir dist",
-		"typecheck": "tsc --noEmit -p tsconfig.json",
+		"build": "tsrs -p tsconfig.json --noEmit false --declaration false --rootDir src --outDir dist",
+		"typecheck": "tsrs --noEmit -p tsconfig.json",
 		"test": "vitest run"
 	},
 	"dependencies": {
@@ -34,7 +34,6 @@
 		"@types/node": "^26.6.5",
 		"@types/react": "^19.3.0",
 		"@types/react-dom": "^19.3.0",
-		"typescript": "^7.0.2",
 		"vite": "^8.3.4",
 		"vitest": "^5.0.3"
 	},
