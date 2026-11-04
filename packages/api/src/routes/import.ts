@@ -1,6 +1,7 @@
 import { createRoute, OpenAPIHono } from "@hono/zod-openapi";
 
 import { withPublicNewsCacheInvalidation } from "#api/cache.server";
+import { apiEnvelopeSchema } from "#api/contracts";
 import {
 	dataImportCommitRequestSchema,
 	dataImportPreviewResponseSchema,
@@ -24,7 +25,9 @@ const previewImport = createRoute({
 		...apiErrorResponses,
 		200: {
 			description: "Read-only import preview and current target snapshot",
-			content: { "application/json": { schema: dataImportPreviewResponseSchema } },
+			content: {
+				"application/json": { schema: apiEnvelopeSchema(dataImportPreviewResponseSchema) },
+			},
 		},
 	},
 });
@@ -40,7 +43,7 @@ const executeImport = createRoute({
 		...apiErrorResponses,
 		200: {
 			description: "Imported new articles and tags into the current scope",
-			content: { "application/json": { schema: dataImportResultSchema } },
+			content: { "application/json": { schema: apiEnvelopeSchema(dataImportResultSchema) } },
 		},
 	},
 });

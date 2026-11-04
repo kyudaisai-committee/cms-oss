@@ -111,6 +111,10 @@ function createApp() {
 		if (error instanceof HTTPException) return httpExceptionResponse(c, error);
 		return internalErrorResponse(c);
 	});
+	app.doc31("/openapi.json", {
+		openapi: "3.2.0",
+		info: { title: "Import API", version: "1.0.0" },
+	});
 	app.route("/", adminImportRoutes);
 	return app;
 }
@@ -121,6 +125,74 @@ afterEach(() => {
 });
 
 describe("admin data import routes", () => {
+	it("documents both success responses as envelopes returned by the routes", async () => {
+		vi.spyOn(CmsService.prototype, "previewDataImport").mockResolvedValue(preview);
+		vi.spyOn(CmsService.prototype, "importData").mockResolvedValue(result);
+		const app = createApp();
+		const previewResponse = await app.request(
+			"/2026/festival/import/preview",
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(request),
+			},
+			environment,
+		);
+		const resultResponse = await app.request(
+			"/2026/festival/import",
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ ...request, expectedPreviewToken: "preview-token" }),
+			},
+			environment,
+		);
+		const openApiResponse = await app.request("/openapi.json");
+
+		expect(previewResponse.status).toBe(200);
+		expect(await previewResponse.json()).toEqual({ data: preview });
+		expect(resultResponse.status).toBe(200);
+		expect(await resultResponse.json()).toEqual({ data: result });
+		expect(openApiResponse.status).toBe(200);
+		expect(await openApiResponse.json()).toMatchObject({
+			openapi: "3.2.0",
+			paths: {
+				"/{year}/{site}/import/preview": {
+					post: {
+						responses: {
+							"200": {
+								content: {
+									"application/json": {
+										schema: {
+											properties: { data: expect.anything() },
+											required: ["data"],
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				"/{year}/{site}/import": {
+					post: {
+						responses: {
+							"200": {
+								content: {
+									"application/json": {
+										schema: {
+											properties: { data: expect.anything() },
+											required: ["data"],
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		});
+	});
+
 	it("returns a no-store preview without writing or purging cache", async () => {
 		const previewDataImport = vi
 			.spyOn(CmsService.prototype, "previewDataImport")
