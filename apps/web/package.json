@@ -48,7 +48,7 @@
 		"unified": "^11.0.5",
 		"vite": "^8.3.4",
 		"waku": "1.0.0-rc.3",
-		"zod": "^4.6.5"
+		"zod": "^4.6.6"
 	},
 	"devDependencies": {
 		"@types/node": "^26.6.5",
