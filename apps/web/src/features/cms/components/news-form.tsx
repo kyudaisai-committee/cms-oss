@@ -9,6 +9,7 @@ import { useRouter } from "waku";
 
 import { StatusMessage } from "#web/components/status-message";
 import { scopePath } from "#web/features/cms/site";
+import { canonicalizeStoredLanguage } from "@repo/core/input";
 import type { AdminNewsDto, ScopeRef, TagDto } from "@repo/core/types";
 
 import {
@@ -107,8 +108,16 @@ function NewsFormContent({
 	const toast = useKumoToastManager();
 	const parentId = currentNews?.id ?? news?.id;
 	const isEdit = parentId !== undefined;
-	const isAlreadyPublished = !translationMissing && currentNews?.status === "published";
 	const activeLang = initialLang ?? currentNews?.lang ?? defaultLanguage ?? "ja";
+	const activeTranslation = currentNews?.translations?.find(
+		(translation) => canonicalizeStoredLanguage(translation.lang) === activeLang,
+	);
+	const isTranslationMissing =
+		currentNews?.translations === undefined
+			? (translationMissing ?? false)
+			: activeTranslation === undefined;
+	const isAlreadyPublished =
+		!isTranslationMissing && (activeTranslation?.status ?? currentNews?.status) === "published";
 	const [serverBaseState, setServerBaseState] = useState(() =>
 		createNewsFormState(news, {
 			slug: initialSlug,
@@ -193,13 +202,9 @@ function NewsFormContent({
 				saved = await createNews(scope, input);
 			} else {
 				await updateNewsParent(scope, parentId, { slug: input.slug, tagIds: input.tagIds });
-				const hasTranslation = currentNews?.translations?.some(
-					(translation) => translation.lang === activeLang,
-				);
-				saved =
-					translationMissing || hasTranslation === false
-						? await createNewsTranslation(scope, parentId, activeLang, translationInput)
-						: await updateNewsTranslation(scope, parentId, activeLang, translationInput);
+				saved = isTranslationMissing
+					? await createNewsTranslation(scope, parentId, activeLang, translationInput)
+					: await updateNewsTranslation(scope, parentId, activeLang, translationInput);
 			}
 			const savedState = createNewsFormState(saved);
 			setSelectedScope(scope);
@@ -333,7 +338,7 @@ function NewsFormContent({
 				initialSlug={initialSlug}
 				parentId={parentId}
 				scope={scope}
-				translationMissing={translationMissing}
+				translationMissing={isTranslationMissing}
 			/>
 
 			{error ? (
