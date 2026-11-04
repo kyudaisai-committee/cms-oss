@@ -1,5 +1,16 @@
 # @repo/api
 
+## 0.1.0-alpha.3
+
+### Patch Changes
+
+- dea9444: Import endpoint success responses now document their data envelopes.
+- d039783: 公開ニュース詳細でGETとQUERYの両方から同じ言語指定を受け付けます。
+- f76dfd0: Asset download filenames now preserve Unicode without creating invalid headers.
+- Updated dependencies [b18bfdd]
+- Updated dependencies [1458609]
+    - @repo/core@0.1.0-alpha.3
+
 ## 0.1.0-alpha.2
 
 ### Patch Changes

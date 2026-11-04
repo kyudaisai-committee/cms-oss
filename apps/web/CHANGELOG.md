@@ -1,5 +1,20 @@
 # @repo/web
 
+## 0.1.0-alpha.3
+
+### Patch Changes
+
+- a733c55: News translations can now be edited after creating a language draft.
+- Updated dependencies [dea9444]
+- Updated dependencies [b18bfdd]
+- Updated dependencies [1458609]
+- Updated dependencies [d039783]
+- Updated dependencies [f76dfd0]
+    - @repo/api@0.1.0-alpha.3
+    - @repo/core@0.1.0-alpha.3
+    - @repo/config@0.1.0-alpha.3
+    - @repo/editor@0.1.0-alpha.3
+
 ## 0.1.0-alpha.2
 
 ### Patch Changes
