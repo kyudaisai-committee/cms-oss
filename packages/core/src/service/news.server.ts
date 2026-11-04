@@ -208,6 +208,7 @@ export class NewsService {
 	async updateNews(id: string, input: UpdateNewsInput): Promise<AdminNewsDto> {
 		const existing = await requireNews(this.repository, this.scope.id, id);
 		const normalized = normalizeUpdateNewsInput(input);
+		let updatedTranslationLang: string | undefined;
 		if (normalized.tagIds !== undefined) {
 			const tagRows = await this.repository.findTagsByIds(this.scope.id, normalized.tagIds);
 			tagIdsFromRows(tagRows, normalized.tagIds);
@@ -237,6 +238,7 @@ export class NewsService {
 				normalized.lang ??
 				canonicalizeStoredLanguage(existing.translation.lang) ??
 				existing.translation.lang;
+			updatedTranslationLang = targetLang;
 			if (
 				!this.scope.availableLanguages.some(
 					(lang) => canonicalizeStoredLanguage(lang) === targetLang,
@@ -304,7 +306,7 @@ export class NewsService {
 				parentAudit,
 			);
 		}
-		return this.getAdminNews(id);
+		return this.getAdminNews(id, updatedTranslationLang);
 	}
 
 	async createNewsTranslation(
