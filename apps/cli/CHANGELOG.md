@@ -1,5 +1,15 @@
 # @repo/cli
 
+## 0.1.0-alpha.3
+
+### Patch Changes
+
+- 0d4b2ee: Product releases now publish directly through GitHub CLI commands in the release workflow.
+- Updated dependencies [b18bfdd]
+- Updated dependencies [1458609]
+    - @repo/core@0.1.0-alpha.3
+    - @repo/config@0.1.0-alpha.3
+
 ## 0.1.0-alpha.2
 
 ### Patch Changes

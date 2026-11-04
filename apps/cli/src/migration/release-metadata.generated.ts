@@ -3,6 +3,7 @@ export const cmsPackageVersions = [
 	"0.1.0-alpha.0",
 	"0.1.0-alpha.1",
 	"0.1.0-alpha.2",
+	"0.1.0-alpha.3",
 ] as const;
 
 export const cmsDatabaseReleases = [] as const;

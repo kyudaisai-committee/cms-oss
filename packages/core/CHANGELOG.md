@@ -1,5 +1,12 @@
 # @repo/core
 
+## 0.1.0-alpha.3
+
+### Patch Changes
+
+- b18bfdd: News list relation loading now stays within the D1 bind parameter limit.
+- 1458609: News updates now return the translation for the requested language.
+
 ## 0.1.0-alpha.2
 
 No changes in this release.
