@@ -56,7 +56,7 @@ afterEach(() => {
 	cachePurge.mockClear();
 });
 
-describe("public news list query methods", () => {
+describe("public news query methods", () => {
 	it("returns the same result for GET and QUERY", async () => {
 		const { listPublishedNews } = setup();
 		const path = "/2026/festival/news?tag=important&limit=10";
@@ -210,7 +210,7 @@ describe("public news list query methods", () => {
 		});
 	});
 
-	it("passes lang to detail endpoint and defaults to undefined", async () => {
+	it("returns the same detail for GET and QUERY and keeps their cache policies", async () => {
 		setup();
 		const getPublishedNews = vi.spyOn(CmsService.prototype, "getPublishedNews").mockResolvedValue({
 			id: "news-1",
@@ -239,6 +239,78 @@ describe("public news list query methods", () => {
 		);
 		expect(resWithLang.status).toBe(200);
 		expect(getPublishedNews).toHaveBeenLastCalledWith("hello", "en");
+		expect(resWithLang.headers.get("Cache-Control")).toBe(
+			"public, max-age=60, stale-while-revalidate=300",
+		);
+		expect(resWithLang.headers.get("Cache-Tag")).toBe("cms-news-2026-festival");
+
+		const queryResponse = await publicApiApp.request(
+			"/2026/festival/news/hello",
+			{
+				method: "QUERY",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ lang: "en" }),
+			},
+			environment,
+		);
+		expect(queryResponse.status).toBe(200);
+		expect(getPublishedNews).toHaveBeenLastCalledWith("hello", "en");
+		expect(queryResponse.headers.get("Cache-Control")).toBe("no-store");
+		expect(queryResponse.headers.get("Cache-Tag")).toBeNull();
+		expect(await queryResponse.json()).toEqual(await resWithLang.json());
+	});
+
+	it("returns a structured 400 for malformed detail QUERY JSON", async () => {
+		setup();
+		const response = await publicApiApp.request(
+			"/2026/festival/news/hello",
+			{
+				method: "QUERY",
+				headers: { "Content-Type": "application/json" },
+				body: "{",
+			},
+			environment,
+		);
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toEqual({
+			error: { message: "Malformed JSON in request body" },
+		});
+	});
+
+	it("returns a structured 400 for invalid detail QUERY input", async () => {
+		setup();
+		const response = await publicApiApp.request(
+			"/2026/festival/news/hello",
+			{
+				method: "QUERY",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ lang: " " }),
+			},
+			environment,
+		);
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toMatchObject({
+			error: {
+				message: "Request validation failed.",
+				details: { lang: expect.any(String) },
+			},
+		});
+	});
+
+	it("requires a detail QUERY request body", async () => {
+		setup();
+		const response = await publicApiApp.request(
+			"/2026/festival/news/hello",
+			{ method: "QUERY", headers: { "Content-Type": "application/json" } },
+			environment,
+		);
+
+		expect(response.status).toBe(400);
+		expect(await response.json()).toEqual({
+			error: { message: "Malformed JSON in request body" },
+		});
 	});
 });
 
