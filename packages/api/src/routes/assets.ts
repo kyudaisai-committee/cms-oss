@@ -34,8 +34,12 @@ function parseRange(value: string | undefined, size: number) {
 }
 
 function disposition(filename: string) {
-	const fallback = filename.replace(/["\r\n]/g, "_") || "asset";
-	return `inline; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
+	const fallback = filename.replace(/[^\x20-\x7e]|["\\]/g, "_") || "asset";
+	const encodedFilename = encodeURIComponent(filename).replace(
+		/[!'()*]/g,
+		(character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+	);
+	return `inline; filename="${fallback}"; filename*=UTF-8''${encodedFilename}`;
 }
 
 function safeExtension(filename: string) {
